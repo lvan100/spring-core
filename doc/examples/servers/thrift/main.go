@@ -23,20 +23,23 @@ import (
 	"os"
 	"time"
 
-	thriftclt "thriftsvr/src/idl/thrift/proto"
-
-	_ "thriftsvr/src/app"
-	_ "thriftsvr/src/biz"
+	"thriftsvr/idl/proto"
 
 	"github.com/apache/thrift/lib/go/thrift"
 	"github.com/go-spring/spring-core/gs"
-	"github.com/go-spring/spring-core/util/sysconf"
 )
 
 func init() {
-	gs.SetActiveProfiles("online")
-	gs.EnableSimpleHttpServer(true)
-	sysconf.Set("spring.monitor.enable", "true")
+	gs.Object(&Controller{})
+	gs.Provide(func(c *Controller) thrift.TProcessor {
+		return proto.NewEchoServiceProcessor(c)
+	})
+}
+
+type Controller struct{}
+
+func (c *Controller) Echo(ctx context.Context, req *proto.EchoRequest) (r *proto.EchoResponse, err error) {
+	return &proto.EchoResponse{Message: req.Message}, nil
 }
 
 func main() {
@@ -55,13 +58,13 @@ func runTest() {
 	defer transport.Close()
 
 	protocolFactory := thrift.NewTBinaryProtocolFactoryConf(nil)
-	client := thriftclt.NewEchoServiceClientFactory(transport, protocolFactory)
+	client := proto.NewEchoServiceClientFactory(transport, protocolFactory)
 
 	if err := transport.Open(); err != nil {
 		log.Fatalf("Error opening transport: %v", err)
 	}
 
-	response, err := client.Echo(context.Background(), &thriftclt.EchoRequest{Message: "Hello, Thrift!"})
+	response, err := client.Echo(context.Background(), &proto.EchoRequest{Message: "Hello, Thrift!"})
 	if err != nil {
 		log.Fatalf("Error calling Echo: %v", err)
 	}

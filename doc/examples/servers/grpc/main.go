@@ -23,21 +23,28 @@ import (
 	"os"
 	"time"
 
-	grpcclt "grpcsvr/src/idl/grpc/proto"
+	"grpcsvr/idl/proto"
 
 	"github.com/go-spring/spring-core/gs"
-	"github.com/go-spring/spring-core/util/sysconf"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-
-	_ "grpcsvr/src/app"
-	_ "grpcsvr/src/biz"
 )
 
 func init() {
-	gs.SetActiveProfiles("online")
-	gs.EnableSimpleHttpServer(true)
-	sysconf.Set("spring.monitor.enable", "true")
+	gs.Object(&Controller{})
+	gs.Provide(func(c *Controller) GrpcServerConfiger {
+		return func(svr *grpc.Server) {
+			proto.RegisterEchoServiceServer(svr, c)
+		}
+	})
+}
+
+type Controller struct {
+	proto.UnimplementedEchoServiceServer
+}
+
+func (c *Controller) Echo(ctx context.Context, req *proto.EchoRequest) (*proto.EchoResponse, error) {
+	return &proto.EchoResponse{Message: req.Message}, nil
 }
 
 func main() {
@@ -58,8 +65,8 @@ func runTest() {
 	}
 	defer conn.Close()
 
-	client := grpcclt.NewEchoServiceClient(conn)
-	response, err := client.Echo(context.Background(), &grpcclt.EchoRequest{Message: "Hello, gRPC!"})
+	client := proto.NewEchoServiceClient(conn)
+	response, err := client.Echo(context.Background(), &proto.EchoRequest{Message: "Hello, gRPC!"})
 	if err != nil {
 		log.Fatalf("Error calling Echo: %v", err)
 	}

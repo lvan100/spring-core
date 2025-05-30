@@ -14,45 +14,39 @@
  * limitations under the License.
  */
 
-package grpcsvr
+package main
 
 import (
 	"context"
-	"log"
-	"net"
+	"time"
 
-	"grpcsvr/src/util"
-
+	"github.com/apache/thrift/lib/go/thrift"
 	"github.com/go-spring/spring-core/gs"
-	"google.golang.org/grpc"
 )
 
 func init() {
-	gs.Object(&SimpleGrpcServer{}).AsServer().Condition(
-		gs.OnBean[util.GrpcServerConfiger](),
+	gs.Object(&SimpleThriftServer{}).AsServer().Condition(
+		gs.OnBean[thrift.TProcessor](),
 	)
 }
 
-type SimpleGrpcServer struct {
-	Addr string                    `value:"${grpc.server.addr:=0.0.0.0:9494}"`
-	Cfgs []util.GrpcServerConfiger `autowire:""`
-	svr  *grpc.Server
+type SimpleThriftServer struct {
+	Addr string            `value:"${thrift.server.addr:=0.0.0.0:9292}"`
+	Proc thrift.TProcessor `autowire:""`
+	svr  *thrift.TSimpleServer
 }
 
-func (s *SimpleGrpcServer) ListenAndServe(sig gs.ReadySignal) error {
-	listener, err := net.Listen("tcp", s.Addr)
+func (s *SimpleThriftServer) ListenAndServe(sig gs.ReadySignal) error {
+	transport, err := thrift.NewTServerSocket(s.Addr)
 	if err != nil {
-		log.Fatalf("Failed to listen: %v", err)
+		return err
 	}
-	s.svr = grpc.NewServer()
-	for _, cfg := range s.Cfgs {
-		cfg(s.svr)
-	}
+	s.svr = thrift.NewTSimpleServer2(s.Proc, transport)
 	<-sig.TriggerAndWait()
-	return s.svr.Serve(listener)
+	return s.svr.Serve()
 }
 
-func (s *SimpleGrpcServer) Shutdown(ctx context.Context) error {
-	s.svr.GracefulStop()
-	return nil
+func (s *SimpleThriftServer) Shutdown(ctx context.Context) error {
+	thrift.ServerStopTimeout = time.Second
+	return s.svr.Stop()
 }
