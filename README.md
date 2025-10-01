@@ -5,7 +5,7 @@
    <img src="https://img.shields.io/github/go-mod/go-version/go-spring/spring-core" alt="go-version"/>
    <img src="https://img.shields.io/github/v/release/go-spring/spring-core?include_prereleases" alt="release"/>
    <a href="https://codecov.io/gh/go-spring/spring-core" > 
-      <img src="https://codecov.io/gh/go-spring/spring-core/graph/badge.svg?token=SX7CV1T0O8" alt="test-coverage"/>
+      <img src="https://codecov.io/gh/go-spring/spring-core/branch/main/graph/badge.svg?token=SX7CV1T0O8" alt="test-coverage"/>
    </a>
    <a href="https://deepwiki.com/go-spring/spring-core"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
 </div>
