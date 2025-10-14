@@ -35,9 +35,8 @@ func init() {
 
 		// Register the default HTTP multiplexer as a bean
 		// if no other http.Handler bean has been defined.
-		Provide(http.DefaultServeMux).
-			Export(As[http.Handler]()).
-			Condition(OnMissingBean[http.Handler]())
+		Provide(&HttpServeMux{http.DefaultServeMux}).
+			Condition(OnMissingBean[*HttpServeMux]())
 
 		// Provide a new SimpleHttpServer instance with
 		// http.Handler injection and configuration binding.
@@ -45,6 +44,11 @@ func init() {
 
 		return nil
 	})
+}
+
+// HttpServeMux is a wrapper around http.ServeMux.
+type HttpServeMux struct {
+	http.Handler
 }
 
 // SimpleHttpServerConfig holds configuration for the SimpleHttpServer.
@@ -77,10 +81,10 @@ type SimpleHttpServer struct {
 
 // NewSimpleHttpServer constructs a new SimpleHttpServer using
 // the provided HTTP handler and configuration.
-func NewSimpleHttpServer(h http.Handler, cfg SimpleHttpServerConfig) *SimpleHttpServer {
+func NewSimpleHttpServer(h *HttpServeMux, cfg SimpleHttpServerConfig) *SimpleHttpServer {
 	return &SimpleHttpServer{svr: &http.Server{
 		Addr:         cfg.Address,
-		Handler:      h,
+		Handler:      h.Handler,
 		ReadTimeout:  cfg.ReadTimeout,
 		WriteTimeout: cfg.WriteTimeout,
 	}}

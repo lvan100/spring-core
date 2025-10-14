@@ -51,6 +51,6 @@ func NewSimplePProfServer(addr string) *SimplePProfServer {
 
 	cfg := SimpleHttpServerConfig{Address: addr}
 	return &SimplePProfServer{
-		SimpleHttpServer: NewSimpleHttpServer(mux, cfg),
+		SimpleHttpServer: NewSimpleHttpServer(&HttpServeMux{mux}, cfg),
 	}
 }
