@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	"github.com/go-spring/spring-base/testing/assert"
+	"github.com/go-spring/spring-core/gs/internal/gs"
 	"github.com/go-spring/spring-core/gs/internal/gs_conf"
 )
 
@@ -70,9 +71,9 @@ func TestBoot(t *testing.T) {
 		t.Cleanup(Reset)
 
 		boot := NewBoot().(*BootImpl)
-		boot.Runner(func() error {
+		boot.Object(gs.FuncRunner(func() error {
 			return errors.New("runner return error")
-		})
+		})).Export(gs.As[gs.Runner]())
 		err := boot.Run()
 		assert.Error(t, err).Matches("runner return error")
 	})
@@ -82,7 +83,9 @@ func TestBoot(t *testing.T) {
 		t.Cleanup(Reset)
 
 		boot := NewBoot().(*BootImpl)
-		boot.Runner(func() error { return nil })
+		boot.Object(gs.FuncRunner(func() error {
+			return nil
+		})).Export(gs.As[gs.Runner]())
 		boot.Config().LocalFile.Reset()
 		err := boot.Run()
 		assert.Error(t, err).Nil()
@@ -96,16 +99,16 @@ func TestBoot(t *testing.T) {
 		var results []string
 
 		// success
-		boot.Runner(func() error {
+		boot.Object(gs.FuncRunner(func() error {
 			results = append(results, "runner1")
 			return nil
-		}).Name("runner1")
+		})).Name("runner1").Export(gs.As[gs.Runner]())
 
 		// success
-		boot.Runner(func() error {
+		boot.Object(gs.FuncRunner(func() error {
 			results = append(results, "runner2")
 			return nil
-		}).Name("runner2")
+		})).Name("runner2").Export(gs.As[gs.Runner]())
 
 		err := boot.Run()
 		assert.Error(t, err).Nil()

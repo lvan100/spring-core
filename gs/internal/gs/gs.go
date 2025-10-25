@@ -142,16 +142,6 @@ type Runner interface {
 	Run() error
 }
 
-// AppRunner is a wrapper for Runner components.
-type AppRunner struct {
-	Runner
-}
-
-// NewAppRunner creates a new AppRunner instance for the given Runner component.
-func NewAppRunner(runner Runner) *AppRunner {
-	return &AppRunner{Runner: runner}
-}
-
 // FuncRunner is a function type adapter that allows ordinary functions
 // to be used as Runner components.
 type FuncRunner func() error
@@ -164,16 +154,6 @@ func (f FuncRunner) Run() error {
 // It is typically used for background tasks or setup work that may be cancellable.
 type Job interface {
 	Run(ctx context.Context) error
-}
-
-// AppJob is a wrapper for Job components.
-type AppJob struct {
-	Job
-}
-
-// NewAppJob creates a new AppJob instance for the given Job component.
-func NewAppJob(job Job) *AppJob {
-	return &AppJob{Job: job}
 }
 
 // FuncJob is a function type adapter for the Job interface.
@@ -194,16 +174,6 @@ type ReadySignal interface {
 type Server interface {
 	ListenAndServe(sig ReadySignal) error
 	Shutdown(ctx context.Context) error
-}
-
-// AppServer is a wrapper for Server components.
-type AppServer struct {
-	Server
-}
-
-// NewAppServer creates a new AppServer instance for the given Server component.
-func NewAppServer(server Server) *AppServer {
-	return &AppServer{Server: server}
 }
 
 /*********************************** bean ************************************/

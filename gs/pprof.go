@@ -19,21 +19,17 @@ package gs
 import (
 	"net/http"
 	"net/http/pprof"
-
-	"github.com/go-spring/spring-core/gs/internal/gs"
 )
 
 func init() {
 	// Registers a SimplePProfServer bean in the IoC container.
 	Provide(
-		func(addr string) *gs.AppServer {
-			return gs.NewAppServer(NewSimplePProfServer(addr))
-		},
+		NewSimplePProfServer,
 		TagArg("${pprof.server.addr:=:9981}"),
 	).Condition(
 		OnEnableServers(),
 		OnProperty(EnableSimplePProfServerProp).HavingValue("true").MatchIfMissing(),
-	).Name("SimplePProfServer")
+	).Export(As[Server]())
 }
 
 // SimplePProfServer is a simple HTTP server that exposes pprof endpoints.

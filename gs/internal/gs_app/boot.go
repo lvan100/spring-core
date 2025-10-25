@@ -31,8 +31,6 @@ type Boot interface {
 	Object(i any) *gs.RegisteredBean
 	// Provide registers a bean using a constructor function and optional arguments.
 	Provide(ctor any, args ...gs.Arg) *gs.RegisteredBean
-	// Runner creates and registers a Runner from a given function.
-	Runner(fn func() error) *gs.RegisteredBean
 }
 
 // BootImpl is the concrete implementation of the Boot interface.
@@ -44,7 +42,7 @@ type BootImpl struct {
 	// flag indicates whether the bootstrapper has been used.
 	flag bool
 
-	Runners []*gs.AppRunner `autowire:"${spring.boot.runners:=?}"`
+	Runners []gs.Runner `autowire:"${spring.boot.runners:=?}"`
 }
 
 // NewBoot creates and returns a new BootImpl instance.
@@ -75,13 +73,6 @@ func (b *BootImpl) Object(i any) *gs.RegisteredBean {
 func (b *BootImpl) Provide(ctor any, args ...gs.Arg) *gs.RegisteredBean {
 	b.flag = true
 	return b.c.Provide(ctor, args...).Caller(1)
-}
-
-// Runner creates a Runner from a function and registers it as a bean.
-func (b *BootImpl) Runner(fn func() error) *gs.RegisteredBean {
-	b.flag = true
-	runner := gs.NewAppRunner(gs.FuncRunner(fn))
-	return b.c.Object(runner).Caller(1)
 }
 
 // Run executes the application's boot process.

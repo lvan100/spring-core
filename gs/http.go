@@ -25,7 +25,6 @@ import (
 
 	"github.com/go-spring/spring-base/util"
 	"github.com/go-spring/spring-core/conf"
-	"github.com/go-spring/spring-core/gs/internal/gs"
 )
 
 func init() {
@@ -36,14 +35,12 @@ func init() {
 
 		// Register the default HTTP multiplexer as a bean
 		// if no other http.Handler bean has been defined.
-		Provide(&HttpServeMux{http.DefaultServeMux}).
+		Object(&HttpServeMux{http.DefaultServeMux}).
 			Condition(OnMissingBean[*HttpServeMux]())
 
 		// Provide a new SimpleHttpServer instance with
 		// http.Handler injection and configuration binding.
-		Provide(func(h *HttpServeMux, cfg SimpleHttpServerConfig) *gs.AppServer {
-			return gs.NewAppServer(NewSimpleHttpServer(h, cfg))
-		}).Name("SimpleHttpServer")
+		Provide(NewSimpleHttpServer).Export(As[Server]())
 
 		return nil
 	})

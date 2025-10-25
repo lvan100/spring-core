@@ -43,9 +43,9 @@ type App struct {
 	cancel  context.CancelFunc // Function to cancel the root context
 	wg      sync.WaitGroup     // WaitGroup to track running jobs and servers
 
-	Runners []*gs.AppRunner `autowire:"${spring.app.runners:=?}"`
-	Jobs    []*gs.AppJob    `autowire:"${spring.app.jobs:=?}"`
-	Servers []*gs.AppServer `autowire:"${spring.app.servers:=?}"`
+	Runners []gs.Runner `autowire:"${spring.app.runners:=?}"`
+	Jobs    []gs.Job    `autowire:"${spring.app.jobs:=?}"`
+	Servers []gs.Server `autowire:"${spring.app.servers:=?}"`
 
 	EnableJobs    bool `value:"${spring.app.enable-jobs:=true}"`
 	EnableServers bool `value:"${spring.app.enable-servers:=true}"`

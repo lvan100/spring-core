@@ -80,12 +80,12 @@ func TestApp(t *testing.T) {
 		Reset()
 		t.Cleanup(Reset)
 
-		r := gs.NewAppRunner(gs.FuncRunner(func() error {
+		r := gs.FuncRunner(func() error {
 			panic("runner panic")
-		}))
+		})
 
 		app := NewApp()
-		app.C.Object(r)
+		app.C.Object(r).Export(gs.As[gs.Runner]())
 
 		assert.Panic(t, func() {
 			_ = app.Start()
@@ -96,12 +96,12 @@ func TestApp(t *testing.T) {
 		Reset()
 		t.Cleanup(Reset)
 
-		r := gs.NewAppRunner(gs.FuncRunner(func() error {
+		r := gs.FuncRunner(func() error {
 			return errors.New("runner return error")
-		}))
+		})
 
 		app := NewApp()
-		app.C.Object(r)
+		app.C.Object(r).Export(gs.As[gs.Runner]())
 		err := app.Start()
 		assert.Error(t, err).Matches("runner return error")
 	})
@@ -113,16 +113,16 @@ func TestApp(t *testing.T) {
 		app := NewApp()
 
 		// success
-		r1 := gs.NewAppRunner(gs.FuncRunner(func() error {
+		r1 := gs.FuncRunner(func() error {
 			return nil
-		}))
-		app.C.Object(r1).Name("r1")
+		})
+		app.C.Object(r1).Export(gs.As[gs.Runner]()).Name("r1")
 
 		// error
-		r2 := gs.NewAppRunner(gs.FuncRunner(func() error {
+		r2 := gs.FuncRunner(func() error {
 			return errors.New("runner error")
-		}))
-		app.C.Object(r2).Name("r2")
+		})
+		app.C.Object(r2).Export(gs.As[gs.Runner]()).Name("r2")
 
 		err := app.Start()
 		assert.Error(t, err).Matches("runner error")
@@ -156,12 +156,12 @@ func TestApp(t *testing.T) {
 		Reset()
 		t.Cleanup(Reset)
 
-		r := gs.NewAppJob(gs.FuncJob(func(ctx context.Context) error {
+		r := gs.FuncJob(func(ctx context.Context) error {
 			panic("job panic")
-		}))
+		})
 
 		app := NewApp()
-		app.C.Object(r)
+		app.C.Object(r).Export(gs.As[gs.Job]())
 		err := app.Start()
 		assert.That(t, err).Nil()
 		time.Sleep(50 * time.Millisecond)
@@ -172,12 +172,12 @@ func TestApp(t *testing.T) {
 		Reset()
 		t.Cleanup(Reset)
 
-		r := gs.NewAppJob(gs.FuncJob(func(ctx context.Context) error {
+		r := gs.FuncJob(func(ctx context.Context) error {
 			return errors.New("job return error")
-		}))
+		})
 
 		app := NewApp()
-		app.C.Object(r)
+		app.C.Object(r).Export(gs.As[gs.Job]())
 		err := app.Start()
 		assert.That(t, err).Nil()
 		time.Sleep(50 * time.Millisecond)
@@ -189,14 +189,14 @@ func TestApp(t *testing.T) {
 		t.Cleanup(Reset)
 
 		jobFinished := make(chan bool, 1)
-		r := gs.NewAppJob(gs.FuncJob(func(ctx context.Context) error {
+		r := gs.FuncJob(func(ctx context.Context) error {
 			<-ctx.Done()
 			jobFinished <- true
 			return ctx.Err()
-		}))
+		})
 
 		app := NewApp()
-		app.C.Object(r)
+		app.C.Object(r).Export(gs.As[gs.Job]())
 
 		go func() {
 			time.Sleep(50 * time.Millisecond)
@@ -220,7 +220,7 @@ func TestApp(t *testing.T) {
 		r.MockListenAndServe().ReturnValue(errors.New("server return error"))
 
 		app := NewApp()
-		app.C.Object(gs.NewAppServer(r))
+		app.C.Object(r).Export(gs.As[gs.Server]())
 		err := app.Start()
 		assert.Error(t, err).String("server intercepted")
 		time.Sleep(50 * time.Millisecond)
@@ -239,7 +239,7 @@ func TestApp(t *testing.T) {
 		})
 
 		app := NewApp()
-		app.C.Object(gs.NewAppServer(r))
+		app.C.Object(r).Export(gs.As[gs.Server]())
 		err := app.Start()
 		assert.Error(t, err).String("server intercepted")
 		time.Sleep(50 * time.Millisecond)
@@ -252,27 +252,27 @@ func TestApp(t *testing.T) {
 
 		app := NewApp()
 		{
-			r := gs.NewAppRunner(gs.FuncRunner(func() error {
+			r := gs.FuncRunner(func() error {
 				return nil
-			}))
-			app.C.Object(r).Name("r1")
+			})
+			app.C.Object(r).Export(gs.As[gs.Runner]()).Name("r1")
 		}
 		{
-			r := gs.NewAppRunner(gs.FuncRunner(func() error {
+			r := gs.FuncRunner(func() error {
 				return nil
-			}))
-			app.C.Object(r).Name("r2")
+			})
+			app.C.Object(r).Export(gs.As[gs.Runner]()).Name("r2")
 		}
 		{
-			r := gs.NewAppJob(gs.FuncJob(func(ctx context.Context) error {
+			r := gs.FuncJob(func(ctx context.Context) error {
 				<-ctx.Done()
 				return nil
-			}))
-			app.C.Object(r).Name("j1")
+			})
+			app.C.Object(r).Export(gs.As[gs.Job]()).Name("j1")
 		}
 		j2Wait := make(chan struct{}, 1)
 		{
-			r := gs.NewAppJob(gs.FuncJob(func(ctx context.Context) error {
+			r := gs.FuncJob(func(ctx context.Context) error {
 				for {
 					time.Sleep(time.Millisecond)
 					if app.Exiting() {
@@ -280,8 +280,8 @@ func TestApp(t *testing.T) {
 						return nil
 					}
 				}
-			}))
-			app.C.Object(r).Name("j2")
+			})
+			app.C.Object(r).Export(gs.As[gs.Job]()).Name("j2")
 		}
 		{
 			m := gsmock.NewManager()
@@ -292,7 +292,7 @@ func TestApp(t *testing.T) {
 				return nil
 			})
 
-			app.C.Object(gs.NewAppServer(r)).Name("s1")
+			app.C.Object(r).Export(gs.As[gs.Server]()).Name("s1")
 		}
 		{
 			m := gsmock.NewManager()
@@ -303,7 +303,7 @@ func TestApp(t *testing.T) {
 				return nil
 			})
 
-			app.C.Object(gs.NewAppServer(r)).Name("s2")
+			app.C.Object(r).Export(gs.As[gs.Server]()).Name("s2")
 		}
 		go func() {
 			time.Sleep(50 * time.Millisecond)
@@ -338,7 +338,7 @@ func TestApp(t *testing.T) {
 			return nil
 		})
 
-		app.C.Object(gs.NewAppServer(r))
+		app.C.Object(r).Export(gs.As[gs.Server]())
 		go func() {
 			time.Sleep(50 * time.Millisecond)
 			app.ShutDown()

@@ -183,27 +183,18 @@ func OnEnableServers() ConditionOnProperty {
 /*********************************** app *************************************/
 
 type (
-	// Server is an alias for gs.Server.
-	Server = gs.Server
+	// Runner is an alias for gs.Runner.
+	Runner     = gs.Runner
+	FuncRunner = gs.FuncRunner
 
-	// ReadySignal represents a signal sent when the application is ready.
+	// Job is an alias for gs.Job.
+	Job     = gs.Job
+	FuncJob = gs.FuncJob
+
+	// Server is an alias for gs.Server.
+	Server      = gs.Server
 	ReadySignal = gs.ReadySignal
 )
-
-// NewAppRunner creates a new AppRunner instance.
-func NewAppRunner(runner gs.Runner) *gs.AppRunner {
-	return gs.NewAppRunner(runner)
-}
-
-// NewAppJob creates a new AppJob instance.
-func NewAppJob(job gs.Job) *gs.AppJob {
-	return gs.NewAppJob(job)
-}
-
-// NewAppServer creates a new AppServer instance.
-func NewAppServer(server Server) *gs.AppServer {
-	return gs.NewAppServer(server)
-}
 
 var (
 	// B is the global bootstrapper for initializing the application.
@@ -276,16 +267,6 @@ func Group[T any, R any](tag string, fn func(c T) (R, error), d func(R) error) {
 		}
 		return nil
 	})
-}
-
-// Runner registers a function as a runner bean.
-func Runner(fn func() error) *gs.RegisteredBean {
-	return Object(NewAppRunner(gs.FuncRunner(fn))).Caller(1)
-}
-
-// Job registers a function as a job bean.
-func Job(fn func(ctx context.Context) error) *gs.RegisteredBean {
-	return Object(NewAppJob(gs.FuncJob(fn))).Caller(1)
 }
 
 // Web enables or disables the built-in HTTP server.
