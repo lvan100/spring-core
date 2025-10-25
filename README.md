@@ -284,8 +284,7 @@ gs.Provide(NewService).
    Destroy(func (s *Service) { ... }).
    Condition(OnProperty("feature.enabled")).
    DependsOn(gs.BeanSelectorFor[*Repo]()).
-   Export(gs.As[ServiceInterface]()).
-   AsRunner()
+   Export(gs.As[ServiceInterface]())
 ```
 
 Configuration item descriptions:
@@ -445,7 +444,7 @@ providing services externally.
 
 ```go
 func init() {
-   gs.Object(NewServer()).AsServer()
+   gs.Object(gs.NewAppServer(NewServer()))
 }
 
 type MyServer struct {
@@ -498,13 +497,7 @@ func (s *GRPCServer) Shutdown(ctx context.Context) error {
 
 ### 💡 Multiple Servers Running Concurrently
 
-All services registered through `.AsServer()` will start concurrently when `gs.Run()` is called and listen for exit
-signals uniformly:
-
-```go
-gs.Object(&HTTPServer{}).AsServer()
-gs.Object(&GRPCServer{}).AsServer()
-```
+// todo
 
 ## ⏳ Application Lifecycle Management
 
@@ -514,8 +507,6 @@ meanings:
 1. **Runner**: One-time tasks executed immediately after application startup (e.g., initialization)
 2. **Job**: Background tasks that run continuously during application runtime (e.g., daemon threads, polling)
 3. **Server**: Long-term service processes that provide external services (e.g., HTTP/gRPC)
-
-These roles can be registered through `.AsRunner() / .AsJob() / .AsServer()`.
 
 Example: Runner
 
@@ -528,7 +519,7 @@ func (b *Bootstrap) Run() error {
 }
 
 func init() {
-   gs.Object(&Bootstrap{}).AsRunner()
+   gs.Object(gs.NewAppRunner(&Bootstrap{})).Name("BootstrapRunner")
 }
 ```
 
@@ -556,7 +547,7 @@ func (j *Job) Run(ctx context.Context) error {
 }
 
 func init() {
-   gs.Object(&Job{}).AsJob()
+   gs.Object(gs.NewAppJob(&Job{})).Name("Job")
 }
 ```
 

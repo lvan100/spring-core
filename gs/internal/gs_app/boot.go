@@ -44,7 +44,7 @@ type BootImpl struct {
 	// flag indicates whether the bootstrapper has been used.
 	flag bool
 
-	Runners []gs.Runner `autowire:"${spring.boot.runners:=?}"`
+	Runners []*gs.AppRunner `autowire:"${spring.boot.runners:=?}"`
 }
 
 // NewBoot creates and returns a new BootImpl instance.
@@ -80,8 +80,8 @@ func (b *BootImpl) Provide(ctor any, args ...gs.Arg) *gs.RegisteredBean {
 // Runner creates a Runner from a function and registers it as a bean.
 func (b *BootImpl) Runner(fn func() error) *gs.RegisteredBean {
 	b.flag = true
-	i := gs.FuncRunner(fn)
-	return b.c.Object(i).AsRunner().Caller(1)
+	runner := gs.NewAppRunner(gs.FuncRunner(fn))
+	return b.c.Object(runner).Caller(1)
 }
 
 // Run executes the application's boot process.

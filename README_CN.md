@@ -261,8 +261,7 @@ gs.Provide(NewService).
     Destroy(func(s *Service) { ... }).
     Condition(OnProperty("feature.enabled")).
     DependsOn(gs.BeanSelectorFor[*Repo]()).
-    Export(gs.As[ServiceInterface]()).
-    AsRunner()
+    Export(gs.As[ServiceInterface]())
 ```
 
 配置项说明：
@@ -411,7 +410,7 @@ type ReadySignal interface {
 
 ```go
 func init() {
-    gs.Object(NewServer()).AsServer()
+    gs.Object(gs.NewAppServer(NewServer()))
 }
 
 type MyServer struct {
@@ -464,12 +463,7 @@ func (s *GRPCServer) Shutdown(ctx context.Context) error {
 
 ### 💡 多 Server 并发运行
 
-所有通过 `.AsServer()` 注册的服务，会在 `gs.Run()` 时并发启动，并统一监听退出信号：
-
-```go
-gs.Object(&HTTPServer{}).AsServer()
-gs.Object(&GRPCServer{}).AsServer()
-```
+// todo
 
 ## ⏳ 应用生命周期管理
 
@@ -478,8 +472,6 @@ Go-Spring 将应用运行周期抽象为三个角色：`Runner`、`Job`、`Serve
 1. **Runner**：应用启动后立即执行的一次性任务（初始化等）
 2. **Job**：应用运行期间持续运行的后台任务（守护线程、轮询等）
 3. **Server**：对外提供服务的长期服务进程（如 HTTP/gRPC 等）
-
-这些角色可以通过 `.AsRunner() / .AsJob() / .AsServer()` 进行注册。
 
 示例：Runner
 
@@ -492,7 +484,7 @@ func (b *Bootstrap) Run() error {
 }
 
 func init() {
-    gs.Object(&Bootstrap{}).AsRunner()
+    gs.Object(gs.NewAppRunner(&Bootstrap{})).Name("BootstrapRunner")
 }
 ```
 
@@ -520,7 +512,7 @@ func (j *Job) Run(ctx context.Context) error {
 }
 
 func init() {
-   gs.Object(&Job{}).AsJob()
+   gs.Object(gs.NewAppJob(&Job{})).Name("Job")
 }
 ```
 

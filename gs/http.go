@@ -25,6 +25,7 @@ import (
 
 	"github.com/go-spring/spring-base/util"
 	"github.com/go-spring/spring-core/conf"
+	"github.com/go-spring/spring-core/gs/internal/gs"
 )
 
 func init() {
@@ -40,7 +41,9 @@ func init() {
 
 		// Provide a new SimpleHttpServer instance with
 		// http.Handler injection and configuration binding.
-		Provide(NewSimpleHttpServer).AsServer()
+		Provide(func(h *HttpServeMux, cfg SimpleHttpServerConfig) *gs.AppServer {
+			return gs.NewAppServer(NewSimpleHttpServer(h, cfg))
+		}).Name("SimpleHttpServer")
 
 		return nil
 	})
