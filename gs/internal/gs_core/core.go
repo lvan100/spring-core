@@ -25,6 +25,15 @@ import (
 	"github.com/go-spring/spring-core/gs/internal/gs_core/resolving"
 )
 
+// RefreshState represents the current state of the container.
+type RefreshState int
+
+const (
+	RefreshDefault = RefreshState(iota)
+	Refreshing
+	Refreshed
+)
+
 // Container represents the core IoC container of the Go-Spring framework.
 // It orchestrates two major phases:
 //  1. Resolving: Registers, filters, and activates bean definitions.
@@ -32,17 +41,20 @@ import (
 type Container struct {
 	*resolving.Resolving
 	*injecting.Injecting
+	State RefreshState
 }
 
 // New creates and returns a new IoC container instance.
 func New() *Container {
 	return &Container{
 		Resolving: resolving.New(),
+		State:     RefreshDefault,
 	}
 }
 
 // Refresh performs the full lifecycle initialization of the container.
 func (c *Container) Refresh(p conf.Properties) error {
+	c.State = Refreshing
 
 	// Step 1: Resolve and prepare all bean definitions.
 	if err := c.Resolving.Refresh(p); err != nil {
@@ -55,7 +67,7 @@ func (c *Container) Refresh(p conf.Properties) error {
 		return err
 	}
 
-	// Clear the resolving phase reference to free resources.
+	c.State = Refreshed
 	c.Resolving = nil
 	return nil
 }

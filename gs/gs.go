@@ -29,6 +29,8 @@ import (
 	"github.com/go-spring/spring-core/gs/internal/gs_arg"
 	"github.com/go-spring/spring-core/gs/internal/gs_cond"
 	"github.com/go-spring/spring-core/gs/internal/gs_conf"
+	"github.com/go-spring/spring-core/gs/internal/gs_core"
+	"github.com/go-spring/spring-core/gs/internal/gs_core/resolving"
 	"github.com/go-spring/spring-core/gs/internal/gs_dync"
 )
 
@@ -183,19 +185,25 @@ func OnEnableServers() ConditionOnProperty {
 /*********************************** app *************************************/
 
 type (
-	Runner      = gs.Runner
-	Job         = gs.Job
-	Server      = gs.Server
-	ReadySignal = gs.ReadySignal
+	Runner       = gs.Runner
+	Job          = gs.Job
+	Server       = gs.Server
+	ReadySignal  = gs.ReadySignal
+	BeanProvider = gs.BeanProvider
 )
 
-var (
-	// B is the global bootstrapper for initializing the application.
-	B = gs_app.NewBoot()
+// app is the global application instance.
+var app = gs_app.NewApp()
 
-	// app is the global application instance.
-	app = gs_app.NewApp()
-)
+// FuncRunner wraps a function into a Runner.
+func FuncRunner(fn func(ctx context.Context) error) Runner {
+	return gs.FuncRunner(fn)
+}
+
+// FuncJob wraps a context-aware function into a Job.
+func FuncJob(fn func(ctx context.Context) error) Job {
+	return gs.FuncJob(fn)
+}
 
 // Config returns the current application configuration.
 func Config() *gs_conf.AppConfig {
@@ -222,17 +230,10 @@ func RefreshProperties() error {
 
 // Root registers a root bean in the application context.
 func Root(b *gs.RegisteredBean) {
+	if app.C.State != gs_core.RefreshDefault {
+		panic("container is already refreshing or refreshed")
+	}
 	app.C.Root(b)
-}
-
-// FuncRunner wraps a function into a Runner.
-func FuncRunner(fn func() error) Runner {
-	return gs.FuncRunner(fn)
-}
-
-// FuncJob wraps a context-aware function into a Job.
-func FuncJob(fn func(ctx context.Context) error) Job {
-	return gs.FuncJob(fn)
 }
 
 // Provide registers a bean definition.
@@ -240,28 +241,40 @@ func FuncJob(fn func(ctx context.Context) error) Job {
 // The optional args are used to bind parameters for the constructor or to
 // provide explicit injection values.
 func Provide(objOrCtor any, args ...Arg) *gs.RegisteredBean {
+	if app.C.State != gs_core.RefreshDefault {
+		panic("container is already refreshing or refreshed")
+	}
 	return app.C.Provide(objOrCtor, args...).Caller(1)
 }
 
+// ModuleFunc defines the signature of a module function.
+type ModuleFunc = resolving.ModuleFunc
+
 // Module registers a configuration module that is conditionally activated
 // based on property values.
-func Module(conditions []ConditionOnProperty, fn func(p conf.Properties) error) {
+func Module(conditions []ConditionOnProperty, fn ModuleFunc) {
+	if app.C.State != gs_core.RefreshDefault {
+		panic("container is already refreshing or refreshed")
+	}
 	app.C.Module(conditions, fn)
 }
 
 // Group registers a set of beans based on a configuration property map.
 // Each map entry spawns a bean constructed via fn and optionally destroyed via d.
 func Group[T any, R any](tag string, fn func(c T) (R, error), d func(R) error) {
+	if app.C.State != gs_core.RefreshDefault {
+		panic("container is already refreshing or refreshed")
+	}
 	key := strings.TrimSuffix(strings.TrimPrefix(tag, "${"), "}")
 	app.C.Module([]ConditionOnProperty{
 		OnProperty(key),
-	}, func(p conf.Properties) error {
+	}, func(r BeanProvider, p conf.Properties) error {
 		var m map[string]T
 		if err := p.Bind(&m, "${"+key+"}"); err != nil {
 			return err
 		}
 		for name, c := range m {
-			b := Provide(fn, ValueArg(c)).Name(name)
+			b := r.Provide(fn, ValueArg(c)).Name(name)
 			if d != nil {
 				b.Destroy(d)
 			}

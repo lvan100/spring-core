@@ -143,19 +143,19 @@ func NewServerMockImpl(r *gsmock.Manager) *ServerMockImpl {
 }
 
 // ListenAndServe executes the mocked ListenAndServe method.
-// with 1 parameters and 1 return values.
-func (impl *ServerMockImpl) ListenAndServe(sig ReadySignal) error {
+// with 2 parameters and 1 return values.
+func (impl *ServerMockImpl) ListenAndServe(ctx context.Context, sig ReadySignal) error {
 	t := reflect.TypeFor[ServerMockImpl]()
-	if ret, ok := gsmock.Invoke(impl.r, t, "ListenAndServe", sig); ok {
+	if ret, ok := gsmock.Invoke(impl.r, t, "ListenAndServe", ctx, sig); ok {
 		return gsmock.Unbox1[error](ret)
 	}
 	panic("no mock code matched for Server.ListenAndServe")
 }
 
 // MockListenAndServe returns a MockerNN instance to register mock behavior for ListenAndServe.
-func (impl *ServerMockImpl) MockListenAndServe() *gsmock.Mocker11[ReadySignal, error] {
+func (impl *ServerMockImpl) MockListenAndServe() *gsmock.Mocker21[context.Context, ReadySignal, error] {
 	t := reflect.TypeFor[ServerMockImpl]()
-	return gsmock.NewMocker11[ReadySignal, error](impl.r, t, "ListenAndServe")
+	return gsmock.NewMocker21[context.Context, ReadySignal, error](impl.r, t, "ListenAndServe")
 }
 
 // Shutdown executes the mocked Shutdown method.

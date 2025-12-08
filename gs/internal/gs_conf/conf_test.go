@@ -89,55 +89,6 @@ func TestAppConfig(t *testing.T) {
 	})
 }
 
-func TestBootConfig(t *testing.T) {
-	clean()
-
-	t.Run("local dir resolve error", func(t *testing.T) {
-		t.Cleanup(clean)
-		_ = os.Setenv("GS_SPRING_APP_CONFIG-LOCAL_DIR", "${a}")
-		_, err := NewBootConfig().Refresh()
-		assert.Error(t, err).Matches(`resolve string "\${a}" error: property \"a\" not exist`)
-	})
-
-	t.Run("success", func(t *testing.T) {
-		t.Cleanup(clean)
-		_ = os.Setenv("GS_SPRING_APP_CONFIG-LOCAL_DIR", "./testdata/conf")
-		p, err := NewBootConfig().Refresh()
-		assert.That(t, err).Nil()
-		assert.That(t, p.Data()).Equal(map[string]string{
-			"spring.app.config-local.dir": "./testdata/conf",
-			"spring.app.name":             "test",
-			"http.server.addr":            "0.0.0.0:8080",
-		})
-	})
-
-	t.Run("merge error - env", func(t *testing.T) {
-		t.Cleanup(clean)
-		_ = os.Setenv("GS_A", "a")
-		_ = os.Setenv("GS_A_B", "a.b")
-		_, err := NewBootConfig().Refresh()
-		assert.Error(t, err).Matches("property conflict at path a.b")
-	})
-
-	t.Run("merge error - sys", func(t *testing.T) {
-		t.Cleanup(clean)
-		_ = os.Setenv("GS_SPRING_APP_CONFIG-LOCAL_DIR", "./testdata/conf")
-		fileID := SysConf.AddFile("conf_test.go")
-		_ = SysConf.Set("http.server[0].addr", "0.0.0.0:8080", fileID)
-		_, err := NewBootConfig().Refresh()
-		assert.Error(t, err).Matches("property conflict at path http.server.addr")
-	})
-
-	t.Run("boot config with profiles", func(t *testing.T) {
-		t.Cleanup(clean)
-		_ = os.Setenv("GS_SPRING_PROFILES_ACTIVE", "dev")
-		_ = os.Setenv("GS_SPRING_APP_CONFIG-LOCAL_DIR", "./testdata/conf")
-		p, err := NewBootConfig().Refresh()
-		assert.That(t, err).Nil()
-		assert.That(t, p.Get("spring.app.name")).Equal("test")
-	})
-}
-
 func TestPropertySources(t *testing.T) {
 	clean()
 

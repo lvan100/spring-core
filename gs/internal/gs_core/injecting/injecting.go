@@ -288,19 +288,6 @@ func (c *Injector) getBean(t reflect.Type, tag WireTag, stack *Stack) (BeanRunti
 		}
 	}
 
-	// Special handling for interface types with explicit bean names.
-	if t.Kind() == reflect.Interface && tag.beanName != "" {
-		for _, b := range c.beansByName[tag.beanName] {
-			if !b.Type().AssignableTo(t) {
-				continue
-			}
-			if !slices.Contains(foundBeans, b) {
-				foundBeans = append(foundBeans, b)
-				log.Warnf(context.Background(), log.TagAppDef, "call Export() on %s", b)
-			}
-		}
-	}
-
 	if len(foundBeans) == 0 {
 		if tag.nullable {
 			return nil, nil

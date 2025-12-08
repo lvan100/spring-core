@@ -175,46 +175,6 @@ func (c *AppConfig) Refresh() (conf.Properties, error) {
 	return merge(sources...)
 }
 
-/******************************** BootConfig *********************************/
-
-// BootConfig represents a layered configuration used during application boot.
-// It typically includes only system, local file, environment and command-line
-// sources — no remote sources.
-type BootConfig struct {
-	LocalFile   *PropertySources // Configuration sources from local files.
-	Environment *Environment     // Environment variables as configuration source.
-	CommandArgs *CommandArgs     // Command-line arguments as configuration source.
-}
-
-// NewBootConfig creates a new instance of BootConfig.
-func NewBootConfig() *BootConfig {
-	return &BootConfig{
-		LocalFile:   NewPropertySources(ConfigTypeLocal, "boot"),
-		Environment: NewEnvironment(),
-		CommandArgs: NewCommandArgs(),
-	}
-}
-
-// Refresh merges all layers of configurations into a read-only properties.
-func (c *BootConfig) Refresh() (conf.Properties, error) {
-	p, err := new(SysConfig).Refresh()
-	if err != nil {
-		return nil, util.WrapError(err, "refresh error in source sys")
-	}
-
-	localFiles, err := c.LocalFile.loadFiles(p)
-	if err != nil {
-		return nil, util.WrapError(err, "refresh error in source local")
-	}
-
-	var sources []*NamedPropertyCopier
-	sources = append(sources, NewNamedPropertyCopier("sys", SysConf))
-	sources = append(sources, localFiles...)
-	sources = append(sources, NewNamedPropertyCopier("env", c.Environment))
-	sources = append(sources, NewNamedPropertyCopier("cmd", c.CommandArgs))
-	return merge(sources...)
-}
-
 /****************************** PropertySources ******************************/
 
 // ConfigType defines the type of configuration: local or remote.

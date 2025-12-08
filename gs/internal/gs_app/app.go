@@ -89,7 +89,7 @@ func (app *App) Start() error {
 
 	// Run all registered Runners
 	for _, r := range app.Runners {
-		if err := r.Run(); err != nil {
+		if err := r.Run(app.ctx); err != nil {
 			return err
 		}
 	}
@@ -131,7 +131,7 @@ func (app *App) Start() error {
 						panic(r)
 					}
 				}()
-				err := svr.ListenAndServe(sig)
+				err := svr.ListenAndServe(ctx, sig)
 				if err != nil && !errors.Is(err, http.ErrServerClosed) {
 					log.Errorf(ctx, log.TagAppDef, "server serve error: %v", err)
 					sig.Intercept()

@@ -24,15 +24,13 @@ import (
 
 	"github.com/go-spring/log"
 	"github.com/go-spring/spring-base/util"
-	"github.com/go-spring/spring-core/gs/internal/gs_app"
 )
 
 // AppStarter is a wrapper to manage the lifecycle of a Spring application.
 // It handles initialization, running, graceful shutdown, and logging.
 type AppStarter struct{}
 
-// startApp initializes logging, runs the Boot implementation,
-// and then starts the main application.
+// startApp initializes logging, and starts the main application.
 func (s *AppStarter) startApp() error {
 
 	// Print application banner at startup
@@ -42,12 +40,6 @@ func (s *AppStarter) startApp() error {
 	if err := initLog(); err != nil {
 		return err
 	}
-
-	// Run Boot implementation (pre-app setup)
-	if err := B.(*gs_app.BootImpl).Run(); err != nil {
-		return err
-	}
-	B = nil // Release Boot instance after running
 
 	// Start the application
 	if err := app.Start(); err != nil {

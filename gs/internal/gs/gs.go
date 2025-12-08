@@ -139,20 +139,20 @@ type ArgContext interface {
 // Runner is an interface for components that need to run
 // after all beans have been injected but before the application’s servers start.
 type Runner interface {
-	Run() error
+	Run(ctx context.Context) error
 }
 
 // funcRunner adapts a simple no-argument function into a Runner.
 type funcRunner struct {
-	fn func() error
+	fn func(ctx context.Context) error
 }
 
-func (f *funcRunner) Run() error {
-	return f.fn()
+func (f *funcRunner) Run(ctx context.Context) error {
+	return f.fn(ctx)
 }
 
 // FuncRunner wraps a function into a Runner.
-func FuncRunner(fn func() error) Runner {
+func FuncRunner(fn func(ctx context.Context) error) Runner {
 	return &funcRunner{fn: fn}
 }
 
@@ -185,7 +185,7 @@ type ReadySignal interface {
 // Server defines the lifecycle of application servers (e.g., HTTP, gRPC).
 // It provides methods for starting and gracefully shutting down the server.
 type Server interface {
-	ListenAndServe(sig ReadySignal) error
+	ListenAndServe(ctx context.Context, sig ReadySignal) error
 	Shutdown(ctx context.Context) error
 }
 
@@ -345,4 +345,9 @@ func NewRegisteredBean(d BeanRegistration) *RegisteredBean {
 	return &RegisteredBean{
 		beanBuilder: beanBuilder[RegisteredBean]{d},
 	}
+}
+
+// BeanProvider defines the API for registering beans in the IoC container.
+type BeanProvider interface {
+	Provide(objOrCtor any, args ...Arg) *RegisteredBean
 }

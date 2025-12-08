@@ -31,16 +31,16 @@ func init() {
 	Module([]ConditionOnProperty{
 		OnEnableServers(),
 		OnProperty(EnableSimpleHttpServerProp).HavingValue("true").MatchIfMissing(),
-	}, func(p conf.Properties) error {
+	}, func(r BeanProvider, p conf.Properties) error {
 
 		// Register the default HTTP multiplexer as a bean
 		// if no other http.Handler bean has been defined.
-		Provide(&HttpServeMux{http.DefaultServeMux}).
+		r.Provide(&HttpServeMux{http.DefaultServeMux}).
 			Condition(OnMissingBean[*HttpServeMux]())
 
 		// Provide a new SimpleHttpServer instance with
 		// http.Handler injection and configuration binding.
-		Provide(NewSimpleHttpServer).Export(As[Server]())
+		r.Provide(NewSimpleHttpServer).Export(As[Server]())
 
 		return nil
 	})
@@ -92,7 +92,7 @@ func NewSimpleHttpServer(h *HttpServeMux, cfg SimpleHttpServerConfig) *SimpleHtt
 
 // ListenAndServe starts the HTTP server and blocks until it is stopped.
 // It waits for the given ReadySignal to be triggered before accepting traffic.
-func (s *SimpleHttpServer) ListenAndServe(sig ReadySignal) error {
+func (s *SimpleHttpServer) ListenAndServe(ctx context.Context, sig ReadySignal) error {
 	ln, err := net.Listen("tcp", s.svr.Addr)
 	if err != nil {
 		return util.FormatError(err, "failed to listen on %s", s.svr.Addr)

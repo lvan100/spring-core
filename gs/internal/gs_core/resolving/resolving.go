@@ -38,10 +38,13 @@ const (
 	Refreshed
 )
 
+// ModuleFunc defines the signature of a module function.
+type ModuleFunc func(r gs.BeanProvider, p conf.Properties) error
+
 // Module represents a module that can register additional beans
 // when certain conditions are met.
 type Module struct {
-	f func(p conf.Properties) error
+	f ModuleFunc
 	c gs.Condition
 }
 
@@ -81,22 +84,19 @@ func (c *Resolving) Beans() []*gs_bean.BeanDefinition {
 // AddMock registers a mock bean which can override an existing bean
 // during the refresh phase.
 func (c *Resolving) AddMock(mock gs.BeanMock) {
+	if c.state != RefreshDefault {
+		panic("container is already refreshing or refreshed")
+	}
 	c.mocks = append(c.mocks, mock)
 }
 
 // Provide registers a bean definition.
 // It accepts either an existing instance or a constructor function.
 func (c *Resolving) Provide(objOrCtor any, args ...gs.Arg) *gs.RegisteredBean {
-	b := gs_bean.NewBean(objOrCtor, args...)
-	return c.Register(b).Caller(1)
-}
-
-// Register adds a bean definition to the container.
-// It must be called before the container starts refreshing.
-func (c *Resolving) Register(b *gs.BeanDefinition) *gs.RegisteredBean {
 	if c.state >= Refreshing {
-		panic("container is refreshing or already refreshed")
+		panic("container is already refreshing or refreshed")
 	}
+	b := gs_bean.NewBean(objOrCtor, args...)
 	bd := b.BeanRegistration().(*gs_bean.BeanDefinition)
 	c.beans = append(c.beans, bd)
 	return gs.NewRegisteredBean(bd)
@@ -104,7 +104,10 @@ func (c *Resolving) Register(b *gs.BeanDefinition) *gs.RegisteredBean {
 
 // Module registers a conditional module that will be executed
 // to add beans before the container starts refreshing.
-func (c *Resolving) Module(conditions []gs_cond.ConditionOnProperty, fn func(p conf.Properties) error) {
+func (c *Resolving) Module(conditions []gs_cond.ConditionOnProperty, fn ModuleFunc) {
+	if c.state != RefreshDefault {
+		panic("container is already refreshing or refreshed")
+	}
 	var arr []gs.Condition
 	for _, cond := range conditions {
 		arr = append(arr, cond)
@@ -117,6 +120,9 @@ func (c *Resolving) Module(conditions []gs_cond.ConditionOnProperty, fn func(p c
 
 // Root marks a registered bean as a root bean.
 func (c *Resolving) Root(b *gs.RegisteredBean) {
+	if c.state != RefreshDefault {
+		panic("container is already refreshing or refreshed")
+	}
 	bd := b.BeanRegistration().(*gs_bean.BeanDefinition)
 	c.roots = append(c.roots, bd)
 }
@@ -181,7 +187,7 @@ func (c *Resolving) applyModules(p conf.Properties) error {
 				continue
 			}
 		}
-		if err := m.f(p); err != nil {
+		if err := m.f(c, p); err != nil {
 			return util.FormatError(err, "apply module error")
 		}
 	}

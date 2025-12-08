@@ -86,8 +86,8 @@ func TestResolving(t *testing.T) {
 		err := r.Refresh(conf.New())
 		assert.That(t, err).Nil()
 		assert.Panic(t, func() {
-			r.Register(&gs.BeanDefinition{})
-		}, "container is refreshing or already refreshed")
+			r.Provide(&gs.BeanDefinition{})
+		}, "container is already refreshing or refreshed")
 	})
 
 	t.Run("duplicate mock bean", func(t *testing.T) {
@@ -153,7 +153,7 @@ func TestResolving(t *testing.T) {
 
 	t.Run("module error", func(t *testing.T) {
 		r := New()
-		r.Module(nil, func(p conf.Properties) error {
+		r.Module(nil, func(r gs.BeanProvider, p conf.Properties) error {
 			return errors.New("module error")
 		})
 
@@ -244,7 +244,7 @@ func TestResolving(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		r := New()
 		{
-			r.Module(nil, func(p conf.Properties) error {
+			r.Module(nil, func(r gs.BeanProvider, p conf.Properties) error {
 				keys, err := p.SubKeys("logger")
 				if err != nil {
 					return err

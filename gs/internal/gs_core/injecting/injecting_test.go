@@ -287,7 +287,7 @@ func TestInjecting(t *testing.T) {
 		myFilter := &FilterImpl{}
 
 		beans := []*gs.BeanDefinition{
-			objectBean(myFilter).Name("my_filter"),
+			objectBean(myFilter).Name("my_filter").Export(gs.As[Filter]()),
 			objectBean(&ReqFilter{}).Name("my_filter"),
 			objectBean(&Repository{}).InitMethod("Init").Destroy(func(r *Repository) {
 				r.stop <- struct{}{}

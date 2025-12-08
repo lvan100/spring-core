@@ -80,7 +80,7 @@ func TestApp(t *testing.T) {
 		Reset()
 		t.Cleanup(Reset)
 
-		r := gs.FuncRunner(func() error {
+		r := gs.FuncRunner(func(ctx context.Context) error {
 			panic("runner panic")
 		})
 
@@ -96,7 +96,7 @@ func TestApp(t *testing.T) {
 		Reset()
 		t.Cleanup(Reset)
 
-		r := gs.FuncRunner(func() error {
+		r := gs.FuncRunner(func(ctx context.Context) error {
 			return errors.New("runner return error")
 		})
 
@@ -113,13 +113,13 @@ func TestApp(t *testing.T) {
 		app := NewApp()
 
 		// success
-		r1 := gs.FuncRunner(func() error {
+		r1 := gs.FuncRunner(func(ctx context.Context) error {
 			return nil
 		})
 		app.C.Provide(r1).Export(gs.As[gs.Runner]()).Name("r1")
 
 		// error
-		r2 := gs.FuncRunner(func() error {
+		r2 := gs.FuncRunner(func(ctx context.Context) error {
 			return errors.New("runner error")
 		})
 		app.C.Provide(r2).Export(gs.As[gs.Runner]()).Name("r2")
@@ -234,7 +234,7 @@ func TestApp(t *testing.T) {
 		m := gsmock.NewManager()
 		r := gs.NewServerMockImpl(m)
 		r.MockShutdown().ReturnDefault()
-		r.MockListenAndServe().Handle(func(sig gs.ReadySignal) error {
+		r.MockListenAndServe().Handle(func(ctx context.Context, sig gs.ReadySignal) error {
 			panic("server panic")
 		})
 
@@ -252,13 +252,13 @@ func TestApp(t *testing.T) {
 
 		app := NewApp()
 		{
-			r := gs.FuncRunner(func() error {
+			r := gs.FuncRunner(func(ctx context.Context) error {
 				return nil
 			})
 			app.C.Provide(r).Export(gs.As[gs.Runner]()).Name("r1")
 		}
 		{
-			r := gs.FuncRunner(func() error {
+			r := gs.FuncRunner(func(ctx context.Context) error {
 				return nil
 			})
 			app.C.Provide(r).Export(gs.As[gs.Runner]()).Name("r2")
@@ -287,7 +287,7 @@ func TestApp(t *testing.T) {
 			m := gsmock.NewManager()
 			r := gs.NewServerMockImpl(m)
 			r.MockShutdown().ReturnDefault()
-			r.MockListenAndServe().Handle(func(sig gs.ReadySignal) error {
+			r.MockListenAndServe().Handle(func(ctx context.Context, sig gs.ReadySignal) error {
 				<-sig.TriggerAndWait()
 				return nil
 			})
@@ -298,7 +298,7 @@ func TestApp(t *testing.T) {
 			m := gsmock.NewManager()
 			r := gs.NewServerMockImpl(m)
 			r.MockShutdown().ReturnDefault()
-			r.MockListenAndServe().Handle(func(sig gs.ReadySignal) error {
+			r.MockListenAndServe().Handle(func(ctx context.Context, sig gs.ReadySignal) error {
 				<-sig.TriggerAndWait()
 				return nil
 			})
@@ -333,7 +333,7 @@ func TestApp(t *testing.T) {
 		r.MockShutdown().Handle(func(ctx context.Context) error {
 			return errors.New("server shutdown error")
 		})
-		r.MockListenAndServe().Handle(func(sig gs.ReadySignal) error {
+		r.MockListenAndServe().Handle(func(ctx context.Context, sig gs.ReadySignal) error {
 			<-sig.TriggerAndWait()
 			return nil
 		})
