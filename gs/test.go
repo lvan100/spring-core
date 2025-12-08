@@ -57,7 +57,7 @@ var testers []any
 // which will be automatically added to the Go test framework.
 func AddTester(t any) {
 	testers = append(testers, t)
-	app.C.Root(app.C.Object(t))
+	app.C.Root(app.C.Provide(t))
 }
 
 // TestMain is the custom entry point for the Go test framework.

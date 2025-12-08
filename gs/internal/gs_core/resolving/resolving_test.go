@@ -92,7 +92,7 @@ func TestResolving(t *testing.T) {
 
 	t.Run("duplicate mock bean", func(t *testing.T) {
 		r := New()
-		r.Object(&TestBean{Value: 1}).Configuration()
+		r.Provide(&TestBean{Value: 1}).Configuration()
 		r.AddMock(gs.BeanMock{
 			Object: &TestBean{Value: 9},
 			Target: gs.BeanSelectorFor[*TestBean](),
@@ -107,7 +107,7 @@ func TestResolving(t *testing.T) {
 
 	t.Run("invalid include pattern", func(t *testing.T) {
 		r := New()
-		r.Object(&TestBean{Value: 1}).Configuration(
+		r.Provide(&TestBean{Value: 1}).Configuration(
 			gs.Configuration{
 				Includes: []string{"*"},
 			},
@@ -118,7 +118,7 @@ func TestResolving(t *testing.T) {
 
 	t.Run("invalid exclude pattern", func(t *testing.T) {
 		r := New()
-		r.Object(&TestBean{Value: 1}).Configuration(
+		r.Provide(&TestBean{Value: 1}).Configuration(
 			gs.Configuration{
 				Excludes: []string{"*"},
 			},
@@ -141,8 +141,8 @@ func TestResolving(t *testing.T) {
 
 	t.Run("mock error with multiple target beans", func(t *testing.T) {
 		r := New()
-		r.Object(&TestBean{Value: 1}).Name("TestBean-1")
-		r.Object(&TestBean{Value: 2}).Name("TestBean-2")
+		r.Provide(&TestBean{Value: 1}).Name("TestBean-1")
+		r.Provide(&TestBean{Value: 2}).Name("TestBean-2")
 		r.AddMock(gs.BeanMock{
 			Object: &TestBean{},
 			Target: gs.BeanSelectorFor[*TestBean](),
@@ -164,7 +164,7 @@ func TestResolving(t *testing.T) {
 
 	t.Run("resolve error in bean condition", func(t *testing.T) {
 		r := New()
-		r.Object(&TestBean{Value: 1}).Condition(
+		r.Provide(&TestBean{Value: 1}).Condition(
 			gs_cond.OnFunc(func(ctx gs.ConditionContext) (bool, error) {
 				return false, errors.New("condition error")
 			}),
@@ -175,10 +175,10 @@ func TestResolving(t *testing.T) {
 
 	t.Run("resolve error with multiple conditions", func(t *testing.T) {
 		r := New()
-		r.Object(&TestBean{Value: 1}).Condition(
+		r.Provide(&TestBean{Value: 1}).Condition(
 			gs_cond.OnBean[*TestBean](),
 		)
-		r.Object(&TestBean{Value: 1}).Condition(
+		r.Provide(&TestBean{Value: 1}).Condition(
 			gs_cond.OnFunc(func(ctx gs.ConditionContext) (bool, error) {
 				return false, errors.New("condition error")
 			}),
@@ -190,7 +190,7 @@ func TestResolving(t *testing.T) {
 
 	t.Run("condition not match", func(t *testing.T) {
 		r := New()
-		r.Object(&TestBean{Value: 1}).Condition(
+		r.Provide(&TestBean{Value: 1}).Condition(
 			gs_cond.OnProperty("test.property").HavingValue("true"),
 		)
 		err := r.Refresh(conf.New())
@@ -200,16 +200,16 @@ func TestResolving(t *testing.T) {
 
 	t.Run("duplicate bean", func(t *testing.T) {
 		r := New()
-		r.Object(&TestBean{Value: 1})
-		r.Object(&TestBean{Value: 2})
+		r.Provide(&TestBean{Value: 1})
+		r.Provide(&TestBean{Value: 2})
 		err := r.Refresh(conf.New())
 		assert.Error(t, err).Matches("found duplicate beans")
 	})
 
 	t.Run("duplicate bean with same name", func(t *testing.T) {
 		r := New()
-		r.Object(&ZeroLogger{}).Name("a").Export(gs.As[Logger]())
-		r.Object(&SimpleLogger{}).Name("a").Export(gs.As[Logger]())
+		r.Provide(&ZeroLogger{}).Name("a").Export(gs.As[Logger]())
+		r.Provide(&SimpleLogger{}).Name("a").Export(gs.As[Logger]())
 		err := r.Refresh(conf.New())
 		assert.Error(t, err).Matches("found duplicate beans")
 	})
@@ -224,7 +224,7 @@ func TestResolving(t *testing.T) {
 
 	t.Run("configuration success", func(t *testing.T) {
 		r := New()
-		r.Object(&TestBean{Value: 1}).Configuration(
+		r.Provide(&TestBean{Value: 1}).Configuration(
 			gs.Configuration{
 				Includes: []string{"^NewChild$"},
 			},
@@ -268,7 +268,7 @@ func TestResolving(t *testing.T) {
 			})
 		}
 		{
-			b := r.Object(&http.Server{}).
+			b := r.Provide(&http.Server{}).
 				Condition(gs_cond.OnBean[*http.ServeMux]())
 			assert.That(t, b.BeanRegistration().Name()).Equal("Server")
 		}
@@ -283,7 +283,7 @@ func TestResolving(t *testing.T) {
 			assert.That(t, b.BeanRegistration().Name()).Equal("ServeMux-2")
 		}
 		{
-			b := r.Object(&TestBean{Value: 1}).Configuration().Name("TestBean")
+			b := r.Provide(&TestBean{Value: 1}).Configuration().Name("TestBean")
 			assert.That(t, b.BeanRegistration().Name()).Equal("TestBean")
 			r.AddMock(gs.BeanMock{
 				Object: &TestBean{Value: 2},
@@ -291,7 +291,7 @@ func TestResolving(t *testing.T) {
 			})
 		}
 		{
-			b := r.Object(&TestBean{Value: 1}).Name("TestBean-2").
+			b := r.Provide(&TestBean{Value: 1}).Name("TestBean-2").
 				Configuration(gs.Configuration{
 					Excludes: []string{"^NewChild$"},
 				})
@@ -308,7 +308,7 @@ func TestResolving(t *testing.T) {
 			})
 		}
 		{
-			b := r.Object(&TestBean{Value: 3}).Name("TestBean-3")
+			b := r.Provide(&TestBean{Value: 3}).Name("TestBean-3")
 			r.Provide((*TestBean).NewChild, b)
 		}
 

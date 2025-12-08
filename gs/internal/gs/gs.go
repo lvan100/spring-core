@@ -142,12 +142,18 @@ type Runner interface {
 	Run() error
 }
 
-// FuncRunner is a function type adapter that allows ordinary functions
-// to be used as Runner components.
-type FuncRunner func() error
+// funcRunner adapts a simple no-argument function into a Runner.
+type funcRunner struct {
+	fn func() error
+}
 
-func (f FuncRunner) Run() error {
-	return f()
+func (f *funcRunner) Run() error {
+	return f.fn()
+}
+
+// FuncRunner wraps a function into a Runner.
+func FuncRunner(fn func() error) Runner {
+	return &funcRunner{fn: fn}
 }
 
 // Job is similar to Runner but allows passing a context to the task.
@@ -156,11 +162,18 @@ type Job interface {
 	Run(ctx context.Context) error
 }
 
-// FuncJob is a function type adapter for the Job interface.
-type FuncJob func(ctx context.Context) error
+// funcJob adapts a context-aware function into a Job.
+type funcJob struct {
+	fn func(ctx context.Context) error
+}
 
-func (f FuncJob) Run(ctx context.Context) error {
-	return f(ctx)
+func (f *funcJob) Run(ctx context.Context) error {
+	return f.fn(ctx)
+}
+
+// FuncJob wraps a context-aware function into a Job.
+func FuncJob(fn func(ctx context.Context) error) Job {
+	return &funcJob{fn: fn}
 }
 
 // ReadySignal represents a synchronization mechanism that signals

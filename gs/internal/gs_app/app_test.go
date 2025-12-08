@@ -85,7 +85,7 @@ func TestApp(t *testing.T) {
 		})
 
 		app := NewApp()
-		app.C.Object(r).Export(gs.As[gs.Runner]())
+		app.C.Provide(r).Export(gs.As[gs.Runner]())
 
 		assert.Panic(t, func() {
 			_ = app.Start()
@@ -101,7 +101,7 @@ func TestApp(t *testing.T) {
 		})
 
 		app := NewApp()
-		app.C.Object(r).Export(gs.As[gs.Runner]())
+		app.C.Provide(r).Export(gs.As[gs.Runner]())
 		err := app.Start()
 		assert.Error(t, err).Matches("runner return error")
 	})
@@ -116,13 +116,13 @@ func TestApp(t *testing.T) {
 		r1 := gs.FuncRunner(func() error {
 			return nil
 		})
-		app.C.Object(r1).Export(gs.As[gs.Runner]()).Name("r1")
+		app.C.Provide(r1).Export(gs.As[gs.Runner]()).Name("r1")
 
 		// error
 		r2 := gs.FuncRunner(func() error {
 			return errors.New("runner error")
 		})
-		app.C.Object(r2).Export(gs.As[gs.Runner]()).Name("r2")
+		app.C.Provide(r2).Export(gs.As[gs.Runner]()).Name("r2")
 
 		err := app.Start()
 		assert.Error(t, err).Matches("runner error")
@@ -161,7 +161,7 @@ func TestApp(t *testing.T) {
 		})
 
 		app := NewApp()
-		app.C.Object(r).Export(gs.As[gs.Job]())
+		app.C.Provide(r).Export(gs.As[gs.Job]())
 		err := app.Start()
 		assert.That(t, err).Nil()
 		time.Sleep(50 * time.Millisecond)
@@ -177,7 +177,7 @@ func TestApp(t *testing.T) {
 		})
 
 		app := NewApp()
-		app.C.Object(r).Export(gs.As[gs.Job]())
+		app.C.Provide(r).Export(gs.As[gs.Job]())
 		err := app.Start()
 		assert.That(t, err).Nil()
 		time.Sleep(50 * time.Millisecond)
@@ -196,7 +196,7 @@ func TestApp(t *testing.T) {
 		})
 
 		app := NewApp()
-		app.C.Object(r).Export(gs.As[gs.Job]())
+		app.C.Provide(r).Export(gs.As[gs.Job]())
 
 		go func() {
 			time.Sleep(50 * time.Millisecond)
@@ -220,7 +220,7 @@ func TestApp(t *testing.T) {
 		r.MockListenAndServe().ReturnValue(errors.New("server return error"))
 
 		app := NewApp()
-		app.C.Object(r).Export(gs.As[gs.Server]())
+		app.C.Provide(r).Export(gs.As[gs.Server]())
 		err := app.Start()
 		assert.Error(t, err).String("server intercepted")
 		time.Sleep(50 * time.Millisecond)
@@ -239,7 +239,7 @@ func TestApp(t *testing.T) {
 		})
 
 		app := NewApp()
-		app.C.Object(r).Export(gs.As[gs.Server]())
+		app.C.Provide(r).Export(gs.As[gs.Server]())
 		err := app.Start()
 		assert.Error(t, err).String("server intercepted")
 		time.Sleep(50 * time.Millisecond)
@@ -255,20 +255,20 @@ func TestApp(t *testing.T) {
 			r := gs.FuncRunner(func() error {
 				return nil
 			})
-			app.C.Object(r).Export(gs.As[gs.Runner]()).Name("r1")
+			app.C.Provide(r).Export(gs.As[gs.Runner]()).Name("r1")
 		}
 		{
 			r := gs.FuncRunner(func() error {
 				return nil
 			})
-			app.C.Object(r).Export(gs.As[gs.Runner]()).Name("r2")
+			app.C.Provide(r).Export(gs.As[gs.Runner]()).Name("r2")
 		}
 		{
 			r := gs.FuncJob(func(ctx context.Context) error {
 				<-ctx.Done()
 				return nil
 			})
-			app.C.Object(r).Export(gs.As[gs.Job]()).Name("j1")
+			app.C.Provide(r).Export(gs.As[gs.Job]()).Name("j1")
 		}
 		j2Wait := make(chan struct{}, 1)
 		{
@@ -281,7 +281,7 @@ func TestApp(t *testing.T) {
 					}
 				}
 			})
-			app.C.Object(r).Export(gs.As[gs.Job]()).Name("j2")
+			app.C.Provide(r).Export(gs.As[gs.Job]()).Name("j2")
 		}
 		{
 			m := gsmock.NewManager()
@@ -292,7 +292,7 @@ func TestApp(t *testing.T) {
 				return nil
 			})
 
-			app.C.Object(r).Export(gs.As[gs.Server]()).Name("s1")
+			app.C.Provide(r).Export(gs.As[gs.Server]()).Name("s1")
 		}
 		{
 			m := gsmock.NewManager()
@@ -303,7 +303,7 @@ func TestApp(t *testing.T) {
 				return nil
 			})
 
-			app.C.Object(r).Export(gs.As[gs.Server]()).Name("s2")
+			app.C.Provide(r).Export(gs.As[gs.Server]()).Name("s2")
 		}
 		go func() {
 			time.Sleep(50 * time.Millisecond)
@@ -338,7 +338,7 @@ func TestApp(t *testing.T) {
 			return nil
 		})
 
-		app.C.Object(r).Export(gs.As[gs.Server]())
+		app.C.Provide(r).Export(gs.As[gs.Server]())
 		go func() {
 			time.Sleep(50 * time.Millisecond)
 			app.ShutDown()

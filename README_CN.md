@@ -90,7 +90,7 @@ curl http://127.0.0.1:9090/echo
 
 ```go
 func init() {
-   gs.Object(&Service{})
+   gs.Provide(&Service{})
    
    gs.Provide(func (s *Service) *http.ServeMux {
       http.HandleFunc("/echo", s.Echo)
@@ -134,7 +134,7 @@ curl http://127.0.0.1:9090/refresh  # 触发热刷新
 
 ✅ `value` 标签自动绑定配置；  
 ✅ `gs.Dync[T]` 实现字段热更新；  
-✅ `gs.Object` `gs.Provide()` 注册 Bean。
+✅ `gs.Provide()` 注册 Bean。
 
 ## 🔧 配置管理
 
@@ -186,15 +186,14 @@ Go-Spring 不依赖运行时反射，而是通过编译期生成元数据和显�
 
 ### 1️⃣ 注册方式
 
-Go-Spring 提供多种方式注册 Bean：
+Go-Spring 只提供一种方式注册 Bean：
 
-- **`gs.Object(obj)`** - 将已有对象注册为 Bean
-- **`gs.Provide(ctor, args...)`** - 使用构造函数生成并注册 Bean
+- **`gs.Provide(objOrCtor, args...)`** - 将已有对象注册为 Bean，或者使用构造函数生成并注册 Bean
 
 示例:
 
 ```go
-gs.Object(&Service{})  // 注册结构体实例
+gs.Provide(&Service{})  // 注册结构体实例
 gs.Provide(NewService) // 使用构造函数注册
 gs.Provide(NewRepo, gs.ValueArg("db")) // 构造函数带参数
 ```
@@ -368,7 +367,7 @@ func RefreshVersion(w http.ResponseWriter, r *http.Request) {
 
 ```go
 func main() {
-   gs.Object(&App{})
+   gs.Provide(&App{})
    gs.Provide(func(app *App) *http.ServeMux {
       http.Handle("/", app)
       http.HandleFunc("/refresh", RefreshVersion)
@@ -411,7 +410,7 @@ type ReadySignal interface {
 
 ```go
 func init() {
-    gs.Object(NewServer()).Export(gs.As[gs.Server]())
+    gs.Provide(NewServer()).Export(gs.As[gs.Server]())
 }
 
 type MyServer struct {
@@ -467,8 +466,8 @@ func (s *GRPCServer) Shutdown(ctx context.Context) error {
 所有通过 `.Export(gs.As[gs.Server]())` 注册的服务，会在 `gs.Run()` 时并发启动，并统一监听退出信号：
 
 ```go
-gs.Object(&HTTPServer{}).Export(gs.As[gs.Server]())
-gs.Object(&GRPCServer{}).Export(gs.As[gs.Server]())
+gs.Provide(&HTTPServer{}).Export(gs.As[gs.Server]())
+gs.Provide(&GRPCServer{}).Export(gs.As[gs.Server]())
 ```
 
 ## ⏳ 应用生命周期管理
@@ -492,7 +491,7 @@ func (b *Bootstrap) Run() error {
 }
 
 func init() {
-    gs.Object(&Bootstrap{}).Export(gs.As[gs.Runner]())
+    gs.Provide(&Bootstrap{}).Export(gs.As[gs.Runner]())
 }
 ```
 
@@ -520,7 +519,7 @@ func (j *Job) Run(ctx context.Context) error {
 }
 
 func init() {
-   gs.Object(&Job{}).Export(gs.As[gs.Job]())
+   gs.Provide(&Job{}).Export(gs.As[gs.Job]())
 }
 ```
 

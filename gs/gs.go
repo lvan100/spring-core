@@ -183,15 +183,8 @@ func OnEnableServers() ConditionOnProperty {
 /*********************************** app *************************************/
 
 type (
-	// Runner is an alias for gs.Runner.
-	Runner     = gs.Runner
-	FuncRunner = gs.FuncRunner
-
-	// Job is an alias for gs.Job.
-	Job     = gs.Job
-	FuncJob = gs.FuncJob
-
-	// Server is an alias for gs.Server.
+	Runner      = gs.Runner
+	Job         = gs.Job
 	Server      = gs.Server
 	ReadySignal = gs.ReadySignal
 )
@@ -232,14 +225,22 @@ func Root(b *gs.RegisteredBean) {
 	app.C.Root(b)
 }
 
-// Object registers a bean definition for an existing object instance.
-func Object(i any) *gs.RegisteredBean {
-	return app.C.Object(i).Caller(1)
+// FuncRunner wraps a function into a Runner.
+func FuncRunner(fn func() error) Runner {
+	return gs.FuncRunner(fn)
 }
 
-// Provide registers a bean definition using the provided constructor function.
-func Provide(ctor any, args ...Arg) *gs.RegisteredBean {
-	return app.C.Provide(ctor, args...).Caller(1)
+// FuncJob wraps a context-aware function into a Job.
+func FuncJob(fn func(ctx context.Context) error) Job {
+	return gs.FuncJob(fn)
+}
+
+// Provide registers a bean definition.
+// It accepts either an existing instance or a constructor function.
+// The optional args are used to bind parameters for the constructor or to
+// provide explicit injection values.
+func Provide(objOrCtor any, args ...Arg) *gs.RegisteredBean {
+	return app.C.Provide(objOrCtor, args...).Caller(1)
 }
 
 // Module registers a configuration module that is conditionally activated

@@ -71,7 +71,7 @@ func NewApp() *App {
 // 6. Starts all Servers (if enabled) and waits for readiness.
 func (app *App) Start() error {
 	// Register App as a root bean in the container
-	app.C.Root(app.C.Object(app))
+	app.C.Root(app.C.Provide(app))
 
 	// Load layered application properties
 	var p conf.Properties

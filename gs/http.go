@@ -35,7 +35,7 @@ func init() {
 
 		// Register the default HTTP multiplexer as a bean
 		// if no other http.Handler bean has been defined.
-		Object(&HttpServeMux{http.DefaultServeMux}).
+		Provide(&HttpServeMux{http.DefaultServeMux}).
 			Condition(OnMissingBean[*HttpServeMux]())
 
 		// Provide a new SimpleHttpServer instance with

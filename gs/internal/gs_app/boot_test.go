@@ -49,7 +49,7 @@ func TestBoot(t *testing.T) {
 		_ = gs_conf.SysConf.Set("a", "123", fileID)
 		_ = os.Setenv("GS_A_B", "456")
 		boot := NewBoot().(*BootImpl)
-		boot.Object(bytes.NewBuffer(nil))
+		boot.Provide(bytes.NewBuffer(nil))
 		err := boot.Run()
 		assert.Error(t, err).Matches("property conflict at path a.b")
 	})
@@ -71,7 +71,7 @@ func TestBoot(t *testing.T) {
 		t.Cleanup(Reset)
 
 		boot := NewBoot().(*BootImpl)
-		boot.Object(gs.FuncRunner(func() error {
+		boot.Provide(gs.FuncRunner(func() error {
 			return errors.New("runner return error")
 		})).Export(gs.As[gs.Runner]())
 		err := boot.Run()
@@ -83,7 +83,7 @@ func TestBoot(t *testing.T) {
 		t.Cleanup(Reset)
 
 		boot := NewBoot().(*BootImpl)
-		boot.Object(gs.FuncRunner(func() error {
+		boot.Provide(gs.FuncRunner(func() error {
 			return nil
 		})).Export(gs.As[gs.Runner]())
 		boot.Config().LocalFile.Reset()
@@ -99,13 +99,13 @@ func TestBoot(t *testing.T) {
 		var results []string
 
 		// success
-		boot.Object(gs.FuncRunner(func() error {
+		boot.Provide(gs.FuncRunner(func() error {
 			results = append(results, "runner1")
 			return nil
 		})).Name("runner1").Export(gs.As[gs.Runner]())
 
 		// success
-		boot.Object(gs.FuncRunner(func() error {
+		boot.Provide(gs.FuncRunner(func() error {
 			results = append(results, "runner2")
 			return nil
 		})).Name("runner2").Export(gs.As[gs.Runner]())
@@ -125,8 +125,8 @@ func TestBoot(t *testing.T) {
 		buf := bytes.NewBuffer(nil)
 
 		// duplicate registration
-		boot.Object(buf)
-		boot.Object(buf)
+		boot.Provide(buf)
+		boot.Provide(buf)
 
 		err := boot.Run()
 		assert.Error(t, err).NotNil()

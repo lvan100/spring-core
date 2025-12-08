@@ -26,7 +26,7 @@ import (
 
 func init() {
 	// Register GreetingService as a regular bean in the IoC container.
-	gs.Object(&GreetingService{})
+	gs.Provide(&GreetingService{})
 
 	// Register GreetingTester as a tester so its test methods will be discovered
 	// and executed automatically by gs.TestMain.

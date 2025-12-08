@@ -27,10 +27,8 @@ import (
 type Boot interface {
 	// Config returns the boot configuration.
 	Config() *gs_conf.BootConfig
-	// Object registers an existing object as a bean in the container.
-	Object(i any) *gs.RegisteredBean
-	// Provide registers a bean using a constructor function and optional arguments.
-	Provide(ctor any, args ...gs.Arg) *gs.RegisteredBean
+	// Provide registers a bean definition.
+	Provide(objOrCtor any, args ...gs.Arg) *gs.RegisteredBean
 }
 
 // BootImpl is the concrete implementation of the Boot interface.
@@ -63,16 +61,10 @@ func (b *BootImpl) Root(x *gs.RegisteredBean) {
 	b.c.Root(x)
 }
 
-// Object registers an existing object as a bean in the container.
-func (b *BootImpl) Object(i any) *gs.RegisteredBean {
+// Provide registers a bean definition.
+func (b *BootImpl) Provide(objOrCtor any, args ...gs.Arg) *gs.RegisteredBean {
 	b.flag = true
-	return b.c.Object(i).Caller(1)
-}
-
-// Provide registers a bean using a constructor function and optional arguments.
-func (b *BootImpl) Provide(ctor any, args ...gs.Arg) *gs.RegisteredBean {
-	b.flag = true
-	return b.c.Provide(ctor, args...).Caller(1)
+	return b.c.Provide(objOrCtor, args...).Caller(1)
 }
 
 // Run executes the application's boot process.
@@ -81,7 +73,7 @@ func (b *BootImpl) Run() error {
 	if !b.flag {
 		return nil
 	}
-	b.c.Root(b.c.Object(b))
+	b.c.Root(b.c.Provide(b))
 
 	var p conf.Properties
 

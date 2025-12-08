@@ -84,15 +84,10 @@ func (c *Resolving) AddMock(mock gs.BeanMock) {
 	c.mocks = append(c.mocks, mock)
 }
 
-// Object registers a pre-constructed instance as a bean definition.
-func (c *Resolving) Object(i any) *gs.RegisteredBean {
-	b := gs_bean.NewBean(reflect.ValueOf(i))
-	return c.Register(b).Caller(1)
-}
-
-// Provide registers a constructor function and optional arguments as a bean.
-func (c *Resolving) Provide(ctor any, args ...gs.Arg) *gs.RegisteredBean {
-	b := gs_bean.NewBean(ctor, args...)
+// Provide registers a bean definition.
+// It accepts either an existing instance or a constructor function.
+func (c *Resolving) Provide(objOrCtor any, args ...gs.Arg) *gs.RegisteredBean {
+	b := gs_bean.NewBean(objOrCtor, args...)
 	return c.Register(b).Caller(1)
 }
 
