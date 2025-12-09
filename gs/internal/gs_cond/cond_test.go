@@ -52,13 +52,13 @@ func TestConditionString(t *testing.T) {
 	c = OnMissingBean[any]("a")
 	assert.That(t, fmt.Sprint(c)).Equal(`OnMissingBean(selector={Name:a})`)
 
-	c = OnMissingBeanSelector(gs.BeanSelectorFor[error]())
+	c = OnMissingBeanID(gs.BeanIDFor[error]())
 	assert.That(t, fmt.Sprint(c)).Equal(`OnMissingBean(selector={Type:error})`)
 
 	c = OnSingleBean[any]("a")
 	assert.That(t, fmt.Sprint(c)).Equal(`OnSingleBean(selector={Name:a})`)
 
-	c = OnSingleBeanSelector(gs.BeanSelectorFor[error]())
+	c = OnSingleBeanID(gs.BeanIDFor[error]())
 	assert.That(t, fmt.Sprint(c)).Equal(`OnSingleBean(selector={Type:error})`)
 
 	c = OnExpression("a")
@@ -77,8 +77,8 @@ func TestConditionString(t *testing.T) {
 	assert.That(t, fmt.Sprint(c)).Equal(`OnBean(selector={Name:a})`)
 
 	c = And(
-		OnBeanSelector(gs.BeanSelectorImpl{Name: "a"}),
-		OnBeanSelector(gs.BeanSelectorImpl{Name: "b"}),
+		OnBeanID(gs.BeanID{Name: "a"}),
+		OnBeanID(gs.BeanID{Name: "b"}),
 	)
 	assert.That(t, fmt.Sprint(c)).Equal(`And(OnBean(selector={Name:a}), OnBean(selector={Name:b}))`)
 

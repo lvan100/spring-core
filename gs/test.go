@@ -23,18 +23,19 @@ import (
 
 	"github.com/go-spring/spring-base/util"
 	"github.com/go-spring/spring-core/gs/internal/gs"
+	"github.com/go-spring/spring-core/gs/internal/gs_core/resolving"
 )
 
 // BeanMock represents a mock bean for testing.
 type BeanMock[T any] struct {
-	selector gs.BeanSelector
+	target gs.BeanID
 }
 
 // MockFor creates a BeanMock for the given type and optional bean name.
 // It allows you to specify which bean in the IoC container should be mocked.
 func MockFor[T any](name ...string) BeanMock[T] {
 	return BeanMock[T]{
-		selector: gs.BeanSelectorFor[T](name...),
+		target: gs.BeanIDFor[T](name...),
 	}
 }
 
@@ -42,9 +43,9 @@ func MockFor[T any](name ...string) BeanMock[T] {
 // replacing the original bean defined by the selector.
 // This allows tests to use mocked dependencies.
 func (m BeanMock[T]) With(obj T) {
-	app.C.AddMock(gs.BeanMock{
+	app.C.AddMock(resolving.BeanMock{
 		Object: obj,
-		Target: m.selector,
+		Target: m.target,
 	})
 }
 

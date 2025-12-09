@@ -27,6 +27,7 @@ import (
 	"github.com/go-spring/spring-core/gs/internal/gs"
 	"github.com/go-spring/spring-core/gs/internal/gs_app"
 	"github.com/go-spring/spring-core/gs/internal/gs_arg"
+	"github.com/go-spring/spring-core/gs/internal/gs_bean"
 	"github.com/go-spring/spring-core/gs/internal/gs_cond"
 	"github.com/go-spring/spring-core/gs/internal/gs_conf"
 	"github.com/go-spring/spring-core/gs/internal/gs_core"
@@ -43,15 +44,8 @@ const (
 // It represents a property that can change at runtime.
 type Dync[T any] = gs_dync.Value[T]
 
-// BeanSelector is an alias for gs.BeanSelector used to locate beans
-// within the ioc context.
-type BeanSelector = gs.BeanSelector
-
-// BeanSelectorFor creates a BeanSelector for the specified type T
-// and optional bean name.
-func BeanSelectorFor[T any](name ...string) BeanSelector {
-	return gs.BeanSelectorFor[T](name...)
-}
+// BeanID represents a selector for a bean.
+type BeanID = gs.BeanID
 
 // As returns the [reflect.Type] for a given interface type T.
 func As[T any]() reflect.Type {
@@ -185,11 +179,11 @@ func OnEnableServers() ConditionOnProperty {
 /*********************************** app *************************************/
 
 type (
-	Runner       = gs.Runner
-	Job          = gs.Job
-	Server       = gs.Server
-	ReadySignal  = gs.ReadySignal
-	BeanProvider = gs.BeanProvider
+	Runner       = gs_app.Runner
+	Job          = gs_app.Job
+	Server       = gs_app.Server
+	ReadySignal  = gs_app.ReadySignal
+	BeanProvider = resolving.BeanProvider
 )
 
 // app is the global application instance.
@@ -197,12 +191,12 @@ var app = gs_app.NewApp()
 
 // FuncRunner wraps a function into a Runner.
 func FuncRunner(fn func(ctx context.Context) error) Runner {
-	return gs.FuncRunner(fn)
+	return gs_app.FuncRunner(fn)
 }
 
 // FuncJob wraps a context-aware function into a Job.
 func FuncJob(fn func(ctx context.Context) error) Job {
-	return gs.FuncJob(fn)
+	return gs_app.FuncJob(fn)
 }
 
 // Config returns the current application configuration.
@@ -229,7 +223,7 @@ func RefreshProperties() error {
 }
 
 // Root registers a root bean in the application context.
-func Root(b *gs.RegisteredBean) {
+func Root(b *gs_bean.BeanDefinition) {
 	if app.C.State != gs_core.RefreshDefault {
 		panic("container is already refreshing or refreshed")
 	}
@@ -240,7 +234,7 @@ func Root(b *gs.RegisteredBean) {
 // It accepts either an existing instance or a constructor function.
 // The optional args are used to bind parameters for the constructor or to
 // provide explicit injection values.
-func Provide(objOrCtor any, args ...Arg) *gs.RegisteredBean {
+func Provide(objOrCtor any, args ...Arg) *gs_bean.BeanDefinition {
 	if app.C.State != gs_core.RefreshDefault {
 		panic("container is already refreshing or refreshed")
 	}

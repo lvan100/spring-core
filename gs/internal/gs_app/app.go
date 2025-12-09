@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+//go:generate gs mock -o=app_mock.go -i=Server
+
 package gs_app
 
 import (
@@ -26,11 +28,63 @@ import (
 	"github.com/go-spring/log"
 	"github.com/go-spring/spring-base/util"
 	"github.com/go-spring/spring-core/conf"
-	"github.com/go-spring/spring-core/gs/internal/gs"
 	"github.com/go-spring/spring-core/gs/internal/gs_conf"
 	"github.com/go-spring/spring-core/gs/internal/gs_core"
 	"github.com/go-spring/spring-core/util/goutil"
 )
+
+// Runner is an interface for components that need to run
+// after all beans have been injected but before the application’s servers start.
+type Runner interface {
+	Run(ctx context.Context) error
+}
+
+// funcRunner adapts a simple no-argument function into a Runner.
+type funcRunner struct {
+	fn func(ctx context.Context) error
+}
+
+func (f *funcRunner) Run(ctx context.Context) error {
+	return f.fn(ctx)
+}
+
+// FuncRunner wraps a function into a Runner.
+func FuncRunner(fn func(ctx context.Context) error) Runner {
+	return &funcRunner{fn: fn}
+}
+
+// Job is similar to Runner but allows passing a context to the task.
+// It is typically used for background tasks or setup work that may be cancellable.
+type Job interface {
+	Run(ctx context.Context) error
+}
+
+// funcJob adapts a context-aware function into a Job.
+type funcJob struct {
+	fn func(ctx context.Context) error
+}
+
+func (f *funcJob) Run(ctx context.Context) error {
+	return f.fn(ctx)
+}
+
+// FuncJob wraps a context-aware function into a Job.
+func FuncJob(fn func(ctx context.Context) error) Job {
+	return &funcJob{fn: fn}
+}
+
+// ReadySignal represents a synchronization mechanism that signals
+// when the application is ready to accept requests.
+type ReadySignal interface {
+	TriggerAndWait() <-chan struct{}
+}
+
+// Server defines the lifecycle of application servers (e.g., HTTP, gRPC).
+// It provides methods for starting and gracefully shutting down the server.
+type Server interface {
+	ListenAndServe(ctx context.Context, sig ReadySignal) error
+	Shutdown(ctx context.Context) error
+}
 
 // App represents the core application, managing its lifecycle,
 // configuration, and dependency injection.
@@ -43,9 +97,9 @@ type App struct {
 	cancel  context.CancelFunc // Function to cancel the root context
 	wg      sync.WaitGroup     // WaitGroup to track running jobs and servers
 
-	Runners []gs.Runner `autowire:"${spring.app.runners:=?}"`
-	Jobs    []gs.Job    `autowire:"${spring.app.jobs:=?}"`
-	Servers []gs.Server `autowire:"${spring.app.servers:=?}"`
+	Runners []Runner `autowire:"${spring.app.runners:=?}"`
+	Jobs    []Job    `autowire:"${spring.app.jobs:=?}"`
+	Servers []Server `autowire:"${spring.app.servers:=?}"`
 
 	EnableJobs    bool `value:"${spring.app.enable-jobs:=true}"`
 	EnableServers bool `value:"${spring.app.enable-servers:=true}"`

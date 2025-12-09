@@ -28,6 +28,7 @@ import (
 	"github.com/go-spring/spring-core/conf"
 	"github.com/go-spring/spring-core/gs/internal/gs"
 	"github.com/go-spring/spring-core/gs/internal/gs_arg"
+	"github.com/go-spring/spring-core/gs/internal/gs_bean"
 	"github.com/go-spring/spring-core/gs/internal/gs_cond"
 )
 
@@ -86,20 +87,20 @@ func TestResolving(t *testing.T) {
 		err := r.Refresh(conf.New())
 		assert.That(t, err).Nil()
 		assert.Panic(t, func() {
-			r.Provide(&gs.BeanDefinition{})
+			r.Provide(&gs_bean.BeanDefinition{})
 		}, "container is already refreshing or refreshed")
 	})
 
 	t.Run("duplicate mock bean", func(t *testing.T) {
 		r := New()
 		r.Provide(&TestBean{Value: 1}).Configuration()
-		r.AddMock(gs.BeanMock{
+		r.AddMock(BeanMock{
 			Object: &TestBean{Value: 9},
-			Target: gs.BeanSelectorFor[*TestBean](),
+			Target: gs.BeanIDFor[*TestBean](),
 		})
-		r.AddMock(gs.BeanMock{
+		r.AddMock(BeanMock{
 			Object: &TestBean{Value: 9},
-			Target: gs.BeanSelectorFor[*TestBean](),
+			Target: gs.BeanIDFor[*TestBean](),
 		})
 		err := r.Refresh(conf.New())
 		assert.Error(t, err).Matches("found duplicate mock bean for 'TestBean'")
@@ -108,7 +109,7 @@ func TestResolving(t *testing.T) {
 	t.Run("invalid include pattern", func(t *testing.T) {
 		r := New()
 		r.Provide(&TestBean{Value: 1}).Configuration(
-			gs.Configuration{
+			gs_bean.Configuration{
 				Includes: []string{"*"},
 			},
 		)
@@ -119,7 +120,7 @@ func TestResolving(t *testing.T) {
 	t.Run("invalid exclude pattern", func(t *testing.T) {
 		r := New()
 		r.Provide(&TestBean{Value: 1}).Configuration(
-			gs.Configuration{
+			gs_bean.Configuration{
 				Excludes: []string{"*"},
 			},
 		)
@@ -131,9 +132,9 @@ func TestResolving(t *testing.T) {
 		r := New()
 		r.Provide(NewZeroLogger, gs_arg.Value("a")).
 			Export(gs.As[Logger](), gs.As[CtxLogger]())
-		r.AddMock(gs.BeanMock{
+		r.AddMock(BeanMock{
 			Object: &SimpleLogger{},
-			Target: gs.BeanSelectorFor[Logger](),
+			Target: gs.BeanIDFor[Logger](),
 		})
 		err := r.Refresh(conf.New())
 		assert.Error(t, err).String("mock *resolving.SimpleLogger does not implement required interface resolving.CtxLogger")
@@ -143,9 +144,9 @@ func TestResolving(t *testing.T) {
 		r := New()
 		r.Provide(&TestBean{Value: 1}).Name("TestBean-1")
 		r.Provide(&TestBean{Value: 2}).Name("TestBean-2")
-		r.AddMock(gs.BeanMock{
+		r.AddMock(BeanMock{
 			Object: &TestBean{},
-			Target: gs.BeanSelectorFor[*TestBean](),
+			Target: gs.BeanIDFor[*TestBean](),
 		})
 		err := r.Refresh(conf.New())
 		assert.Error(t, err).Matches("found duplicate mocked beans")
@@ -153,7 +154,7 @@ func TestResolving(t *testing.T) {
 
 	t.Run("module error", func(t *testing.T) {
 		r := New()
-		r.Module(nil, func(r gs.BeanProvider, p conf.Properties) error {
+		r.Module(nil, func(r BeanProvider, p conf.Properties) error {
 			return errors.New("module error")
 		})
 
@@ -225,7 +226,7 @@ func TestResolving(t *testing.T) {
 	t.Run("configuration success", func(t *testing.T) {
 		r := New()
 		r.Provide(&TestBean{Value: 1}).Configuration(
-			gs.Configuration{
+			gs_bean.Configuration{
 				Includes: []string{"^NewChild$"},
 			},
 		).Name("TestBean")
@@ -236,7 +237,7 @@ func TestResolving(t *testing.T) {
 
 		var names []string
 		for _, b := range r.Beans() {
-			names = append(names, b.Name())
+			names = append(names, b.GetName())
 		}
 		assert.That(t, len(names)).Equal(2)
 	})
@@ -244,7 +245,7 @@ func TestResolving(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		r := New()
 		{
-			r.Module(nil, func(r gs.BeanProvider, p conf.Properties) error {
+			r.Module(nil, func(r BeanProvider, p conf.Properties) error {
 				keys, err := p.SubKeys("logger")
 				if err != nil {
 					return err
@@ -258,53 +259,53 @@ func TestResolving(t *testing.T) {
 				return nil
 			})
 			r.Provide(NewLogger, gs_arg.Value("c")).Name("c")
-			r.AddMock(gs.BeanMock{
+			r.AddMock(BeanMock{
 				Object: NewZeroLogger("a@mocked"),
-				Target: gs.BeanSelectorFor[Logger]("a"),
+				Target: gs.BeanIDFor[Logger]("a"),
 			})
-			r.AddMock(gs.BeanMock{
+			r.AddMock(BeanMock{
 				Object: NewZeroLogger("b@mocked"),
-				Target: gs.BeanSelectorFor[CtxLogger]("b"),
+				Target: gs.BeanIDFor[CtxLogger]("b"),
 			})
 		}
 		{
 			b := r.Provide(&http.Server{}).
 				Condition(gs_cond.OnBean[*http.ServeMux]())
-			assert.That(t, b.BeanRegistration().Name()).Equal("Server")
+			assert.That(t, b.GetName()).Equal("Server")
 		}
 		{
 			b := r.Provide(http.NewServeMux).Name("ServeMux-1").
 				Condition(gs_cond.OnProperty("Enable.ServeMux-1").HavingValue("true"))
-			assert.That(t, b.BeanRegistration().Name()).Equal("ServeMux-1")
+			assert.That(t, b.GetName()).Equal("ServeMux-1")
 		}
 		{
 			b := r.Provide(http.NewServeMux).Name("ServeMux-2").
 				Condition(gs_cond.OnProperty("Enable.ServeMux-2").HavingValue("true"))
-			assert.That(t, b.BeanRegistration().Name()).Equal("ServeMux-2")
+			assert.That(t, b.GetName()).Equal("ServeMux-2")
 		}
 		{
 			b := r.Provide(&TestBean{Value: 1}).Configuration().Name("TestBean")
-			assert.That(t, b.BeanRegistration().Name()).Equal("TestBean")
-			r.AddMock(gs.BeanMock{
+			assert.That(t, b.GetName()).Equal("TestBean")
+			r.AddMock(BeanMock{
 				Object: &TestBean{Value: 2},
-				Target: b,
+				Target: b.BeanID(),
 			})
 		}
 		{
 			b := r.Provide(&TestBean{Value: 1}).Name("TestBean-2").
-				Configuration(gs.Configuration{
+				Configuration(gs_bean.Configuration{
 					Excludes: []string{"^NewChild$"},
 				})
-			assert.That(t, b.BeanRegistration().Name()).Equal("TestBean-2")
-			r.AddMock(gs.BeanMock{
+			assert.That(t, b.GetName()).Equal("TestBean-2")
+			r.AddMock(BeanMock{
 				Object: &ChildBean{Value: 2},
-				Target: gs.BeanSelectorFor[*ChildBean]("TestBean-2_NewChildV2"),
+				Target: gs.BeanIDFor[*ChildBean]("TestBean-2_NewChildV2"),
 			})
 		}
 		{
-			r.AddMock(gs.BeanMock{
+			r.AddMock(BeanMock{
 				Object: &bytes.Buffer{},
-				Target: gs.BeanSelectorFor[*bytes.Buffer](),
+				Target: gs.BeanIDFor[*bytes.Buffer](),
 			})
 		}
 		{
@@ -326,7 +327,7 @@ func TestResolving(t *testing.T) {
 
 		var names []string
 		for _, b := range r.Beans() {
-			names = append(names, b.Name())
+			names = append(names, b.GetName())
 		}
 		assert.That(t, names).Equal([]string{
 			"c",

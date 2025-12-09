@@ -40,9 +40,9 @@ import (
 
 // BeanRuntime defines an interface that provides runtime metadata.
 type BeanRuntime interface {
-	Name() string               // The name of the bean
-	Type() reflect.Type         // The reflect.Type of the bean
-	Value() reflect.Value       // The reflect.Value of the bean
+	GetName() string            // The name of the bean
+	GetType() reflect.Type      // The reflect.Type of the bean
+	GetValue() reflect.Value    // The reflect.Value of the bean
 	Interface() any             // The underlying Go interface of the bean
 	Callable() *gs_arg.Callable // Optional constructor or factory metadata
 	Status() gs_bean.BeanStatus // Lifecycle status of the bean
@@ -95,8 +95,8 @@ func (c *Injecting) Refresh(roots, beans []*gs_bean.BeanDefinition) (err error) 
 	c.beansByName = make(map[string][]BeanRuntime)
 	c.beansByType = make(map[reflect.Type][]BeanRuntime)
 	for _, b := range beans {
-		c.beansByName[b.Name()] = append(c.beansByName[b.Name()], b)
-		c.beansByType[b.Type()] = append(c.beansByType[b.Type()], b)
+		c.beansByName[b.GetName()] = append(c.beansByName[b.GetName()], b)
+		c.beansByType[b.GetType()] = append(c.beansByType[b.GetType()], b)
 		for _, t := range b.Exports() { // Register additional exported types
 			c.beansByType[t] = append(c.beansByType[t], b)
 		}
@@ -159,8 +159,8 @@ func (c *Injecting) Refresh(roots, beans []*gs_bean.BeanDefinition) (err error) 
 	c.beansByName = make(map[string][]BeanRuntime)
 	c.beansByType = make(map[reflect.Type][]BeanRuntime)
 	for _, b := range beans {
-		c.beansByName[b.Name()] = append(c.beansByName[b.Name()], b.BeanRuntime)
-		c.beansByType[b.Type()] = append(c.beansByType[b.Type()], b.BeanRuntime)
+		c.beansByName[b.GetName()] = append(c.beansByName[b.GetName()], b.BeanRuntime)
+		c.beansByType[b.GetType()] = append(c.beansByType[b.GetType()], b.BeanRuntime)
 		for _, t := range b.Exports() {
 			c.beansByType[t] = append(c.beansByType[t], b.BeanRuntime)
 		}
@@ -212,16 +212,15 @@ type Injector struct {
 }
 
 // findBeans retrieves all beans that match a given selector.
-func (c *Injector) findBeans(s gs.BeanSelector) []BeanRuntime {
-	t, name := s.TypeAndName()
+func (c *Injector) findBeans(beanID gs.BeanID) []BeanRuntime {
 	var beans []BeanRuntime
-	if t != nil {
-		beans = c.beansByType[t]
+	if beanID.Type != nil {
+		beans = c.beansByType[beanID.Type]
 	}
-	if name != "" {
+	if beanID.Name != "" {
 		var ret []BeanRuntime
 		for _, b := range beans {
-			if name == b.Name() {
+			if beanID.Name == b.GetName() {
 				ret = append(ret, b)
 			}
 		}
@@ -283,7 +282,7 @@ func (c *Injector) getBean(t reflect.Type, tag WireTag, stack *Stack) (BeanRunti
 
 	var foundBeans []BeanRuntime
 	for _, b := range c.beansByType[t] {
-		if tag.beanName == "" || tag.beanName == b.Name() {
+		if tag.beanName == "" || tag.beanName == b.GetName() {
 			foundBeans = append(foundBeans, b)
 		}
 	}
@@ -346,7 +345,7 @@ func (c *Injector) getBeans(t reflect.Type, tags []WireTag, nullable bool, stack
 			// Find beans with the specified name
 			var founds []int
 			for i, b := range beans {
-				if item.beanName == b.Name() {
+				if item.beanName == b.GetName() {
 					founds = append(founds, i)
 				}
 			}
@@ -471,17 +470,17 @@ func (c *Injector) autowire(v reflect.Value, str string, stack *Stack) error {
 			case reflect.Slice:
 				// Sort beans by name for deterministic order
 				sort.Slice(beans, func(i, j int) bool {
-					return beans[i].Name() < beans[j].Name()
+					return beans[i].GetName() < beans[j].GetName()
 				})
 				ret := reflect.MakeSlice(v.Type(), 0, 0)
 				for _, b := range beans {
-					ret = reflect.Append(ret, b.Value())
+					ret = reflect.Append(ret, b.GetValue())
 				}
 				v.Set(ret)
 			case reflect.Map:
 				ret := reflect.MakeMap(v.Type())
 				for _, b := range beans {
-					ret.SetMapIndex(reflect.ValueOf(b.Name()), b.Value())
+					ret.SetMapIndex(reflect.ValueOf(b.GetName()), b.GetValue())
 				}
 				v.Set(ret)
 			default: // for linter
@@ -499,7 +498,7 @@ func (c *Injector) autowire(v reflect.Value, str string, stack *Stack) error {
 			return err
 		}
 		if b != nil {
-			v.Set(b.Value())
+			v.Set(b.GetValue())
 		}
 		return nil
 	}
@@ -519,7 +518,7 @@ func (c *Injector) wireBean(b *gs_bean.BeanDefinition, stack *Stack) error {
 	}()
 
 	// If the bean has a destroy callback, record it for later execution
-	if b.Destroy() != nil {
+	if b.GetDestroy() != nil {
 		haveDestroy = true
 		stack.pushDestroyer(b)
 	}
@@ -543,7 +542,7 @@ func (c *Injector) wireBean(b *gs_bean.BeanDefinition, stack *Stack) error {
 	b.SetStatus(gs_bean.StatusCreating)
 
 	// Wire all dependent beans before creating the current bean
-	for _, s := range b.DependsOn() {
+	for _, s := range b.GetDependsOn() {
 		beans := c.findBeans(s)
 		for _, d := range beans {
 			err := c.wireBean(d.(*gs_bean.BeanDefinition), stack)
@@ -570,9 +569,9 @@ func (c *Injector) wireBean(b *gs_bean.BeanDefinition, stack *Stack) error {
 		}
 
 		// Invoke the bean's initialization method if defined
-		if b.Init() != nil {
-			fnValue := reflect.ValueOf(b.Init())
-			out := fnValue.Call([]reflect.Value{b.Value()})
+		if b.GetInit() != nil {
+			fnValue := reflect.ValueOf(b.GetInit())
+			out := fnValue.Call([]reflect.Value{b.GetValue()})
 			if len(out) > 0 && !out[0].IsNil() {
 				return out[0].Interface().(error)
 			}
@@ -590,7 +589,7 @@ func (c *Injector) getBeanValue(b BeanRuntime, stack *Stack) (reflect.Value, err
 
 	// If there is no constructor, return the pre-existing value
 	if b.Callable() == nil {
-		return b.Value(), nil
+		return b.GetValue(), nil
 	}
 
 	// Invoke the constructor
@@ -620,21 +619,21 @@ func (c *Injector) getBeanValue(b BeanRuntime, stack *Stack) (reflect.Value, err
 		if !val.IsNil() && val.Kind() == reflect.Interface && util.IsPropBindingTarget(val.Elem().Type()) {
 			v := reflect.New(val.Elem().Type())
 			v.Elem().Set(val.Elem())
-			b.Value().Set(v)
+			b.GetValue().Set(v)
 		} else {
-			b.Value().Set(val)
+			b.GetValue().Set(val)
 		}
 	} else {
-		b.Value().Elem().Set(val)
+		b.GetValue().Elem().Set(val)
 	}
 
 	// Ensure the value is not nil
-	if b.Value().IsNil() {
+	if b.GetValue().IsNil() {
 		return reflect.Value{}, util.FormatError(nil, "%s return nil", b.String())
 	}
 
 	// If the value is an interface, unwrap it
-	v := b.Value()
+	v := b.GetValue()
 	if v.Kind() == reflect.Interface {
 		v = v.Elem()
 	}
@@ -807,7 +806,7 @@ func (s *Stack) Path() (path string) {
 // pushDestroyer registers a destroyer for the given bean.
 // It also records dependencies so that beans are destroyed in the correct order.
 func (s *Stack) pushDestroyer(b *gs_bean.BeanDefinition) {
-	beanID := gs.BeanID{Name: b.Name(), Type: b.Type()}
+	beanID := gs.BeanID{Name: b.GetName(), Type: b.GetType()}
 
 	// Get or create the destroyer entry for this bean
 	d, ok := s.destroyerMap[beanID]
@@ -873,7 +872,7 @@ func (s *Stack) getSortedDestroyers() []func() {
 	var ret []func()
 	for e := destroyers.Front(); e != nil; e = e.Next() {
 		d := e.Value.(*destroyer).current
-		ret = append(ret, destroy(d.Value(), d.Destroy()))
+		ret = append(ret, destroy(d.GetValue(), d.GetDestroy()))
 	}
 	return ret
 }
@@ -902,8 +901,8 @@ func (a *ArgContext) Prop(key string, def ...string) string {
 }
 
 // Find retrieves beans matching the given selector.
-func (a *ArgContext) Find(s gs.BeanSelector) ([]gs.ConditionBean, error) {
-	beans := a.c.findBeans(s)
+func (a *ArgContext) Find(beanID gs.BeanID) ([]gs.ConditionBean, error) {
+	beans := a.c.findBeans(beanID)
 	var ret []gs.ConditionBean
 	for _, bean := range beans {
 		ret = append(ret, bean)

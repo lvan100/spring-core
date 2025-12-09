@@ -38,8 +38,20 @@ const (
 	Refreshed
 )
 
+// BeanMock represents a mocked bean instance that can replace a real bean
+// for testing purposes.
+type BeanMock struct {
+	Object any       // The mock instance
+	Target gs.BeanID // The selector identifying the bean to replace
+}
+
+// BeanProvider defines the API for registering beans in the IoC container.
+type BeanProvider interface {
+	Provide(objOrCtor any, args ...gs.Arg) *gs_bean.BeanDefinition
+}
+
 // ModuleFunc defines the signature of a module function.
-type ModuleFunc func(r gs.BeanProvider, p conf.Properties) error
+type ModuleFunc func(r BeanProvider, p conf.Properties) error
 
 // Module represents a module that can register additional beans
 // when certain conditions are met.
@@ -53,7 +65,7 @@ type Module struct {
 // resolving beans against conditions.
 type Resolving struct {
 	state   RefreshState              // current refresh state
-	mocks   []gs.BeanMock             // registered mocks to override beans
+	mocks   []BeanMock                // registered mocks to override beans
 	beans   []*gs_bean.BeanDefinition // all beans managed by the container
 	roots   []*gs_bean.BeanDefinition // root beans to wire at the end
 	modules []Module                  // registered modules
@@ -83,7 +95,7 @@ func (c *Resolving) Beans() []*gs_bean.BeanDefinition {
 
 // AddMock registers a mock bean which can override an existing bean
 // during the refresh phase.
-func (c *Resolving) AddMock(mock gs.BeanMock) {
+func (c *Resolving) AddMock(mock BeanMock) {
 	if c.state != RefreshDefault {
 		panic("container is already refreshing or refreshed")
 	}
@@ -92,14 +104,13 @@ func (c *Resolving) AddMock(mock gs.BeanMock) {
 
 // Provide registers a bean definition.
 // It accepts either an existing instance or a constructor function.
-func (c *Resolving) Provide(objOrCtor any, args ...gs.Arg) *gs.RegisteredBean {
+func (c *Resolving) Provide(objOrCtor any, args ...gs.Arg) *gs_bean.BeanDefinition {
 	if c.state >= Refreshing {
 		panic("container is already refreshing or refreshed")
 	}
 	b := gs_bean.NewBean(objOrCtor, args...)
-	bd := b.BeanRegistration().(*gs_bean.BeanDefinition)
-	c.beans = append(c.beans, bd)
-	return gs.NewRegisteredBean(bd)
+	c.beans = append(c.beans, b)
+	return b
 }
 
 // Module registers a conditional module that will be executed
@@ -119,12 +130,11 @@ func (c *Resolving) Module(conditions []gs_cond.ConditionOnProperty, fn ModuleFu
 }
 
 // Root marks a registered bean as a root bean.
-func (c *Resolving) Root(b *gs.RegisteredBean) {
+func (c *Resolving) Root(b *gs_bean.BeanDefinition) {
 	if c.state != RefreshDefault {
 		panic("container is already refreshing or refreshed")
 	}
-	bd := b.BeanRegistration().(*gs_bean.BeanDefinition)
-	c.roots = append(c.roots, bd)
+	c.roots = append(c.roots, b)
 }
 
 // Refresh performs the full lifecycle of container initialization.
@@ -198,24 +208,23 @@ func (c *Resolving) applyModules(p conf.Properties) error {
 // objects and scans their methods to register additional beans.
 func (c *Resolving) scanConfigurations() error {
 	for _, b := range c.beans {
-		if b.Configuration() == nil {
+		if b.GetConfiguration() == nil {
 			continue
 		}
 
 		// First, check if a mock is defined for this configuration bean.
-		var foundMocks []gs.BeanMock
+		var foundMocks []BeanMock
 		for _, mock := range c.mocks {
-			t, s := mock.Target.TypeAndName()
-			if s != "" && s != b.Name() {
+			if mock.Target.Name != "" && mock.Target.Name != b.GetName() {
 				continue
 			}
-			if t != b.Type() {
+			if mock.Target.Type != b.GetType() {
 				continue
 			}
 			foundMocks = append(foundMocks, mock)
 		}
 		if n := len(foundMocks); n > 1 {
-			return util.FormatError(nil, "found duplicate mock bean for '%s'", b.Name())
+			return util.FormatError(nil, "found duplicate mock bean for '%s'", b.GetName())
 		} else if n == 1 {
 			b.SetMock(foundMocks[0].Object)
 			continue
@@ -240,7 +249,7 @@ func (c *Resolving) scanConfiguration(bd *gs_bean.BeanDefinition) ([]*gs_bean.Be
 		excludes []*regexp.Regexp
 	)
 
-	param := bd.Configuration()
+	param := bd.GetConfiguration()
 	ss := param.Includes
 	if len(ss) == 0 {
 		ss = []string{"New.*"}
@@ -263,9 +272,9 @@ func (c *Resolving) scanConfiguration(bd *gs_bean.BeanDefinition) ([]*gs_bean.Be
 	}
 
 	var ret []*gs_bean.BeanDefinition
-	n := bd.Type().NumMethod()
+	n := bd.GetType().NumMethod()
 	for i := range n {
-		m := bd.Type().Method(i)
+		m := bd.GetType().Method(i)
 
 		// Skip methods matching any exclusion pattern.
 		skip := false
@@ -284,10 +293,9 @@ func (c *Resolving) scanConfiguration(bd *gs_bean.BeanDefinition) ([]*gs_bean.Be
 			if !p.MatchString(m.Name) {
 				continue
 			}
-			b := gs_bean.NewBean(m.Func.Interface(), gs.NewBeanDefinition(bd)).
-				Name(bd.Name() + "_" + m.Name).
-				Condition(gs_cond.OnBeanSelector(bd)).
-				BeanRegistration().(*gs_bean.BeanDefinition)
+			b := gs_bean.NewBean(m.Func.Interface(), bd).
+				Name(bd.GetName() + "_" + m.Name).
+				Condition(gs_cond.OnBeanID(bd.BeanID()))
 			file, line, _ := util.FileLine(m.Func.Interface())
 			b.SetFileLine(file, line)
 			ret = append(ret, b)
@@ -299,10 +307,10 @@ func (c *Resolving) scanConfiguration(bd *gs_bean.BeanDefinition) ([]*gs_bean.Be
 
 // isBeanMatched checks whether a bean matches the given type and name selector.
 func isBeanMatched(t reflect.Type, s string, b *gs_bean.BeanDefinition) bool {
-	if s != "" && s != b.Name() {
+	if s != "" && s != b.GetName() {
 		return false
 	}
-	if t != nil && t != b.Type() {
+	if t != nil && t != b.GetType() {
 		if !slices.Contains(b.Exports(), t) {
 			return false
 		}
@@ -323,13 +331,11 @@ func (c *Resolving) applyMocks() error {
 // applyMock applies a mock object to a target bean.
 // It ensures the mock implements all exported interfaces of the target bean.
 // If more than one target bean is found or the mock is invalid, an error is returned.
-func (c *Resolving) applyMock(mock gs.BeanMock) error {
+func (c *Resolving) applyMock(mock BeanMock) error {
 	var foundBeans []*gs_bean.BeanDefinition
 	vt := reflect.TypeOf(mock.Object)
-	t, s := mock.Target.TypeAndName()
-
 	for _, b := range c.beans {
-		if !isBeanMatched(t, s, b) {
+		if !isBeanMatched(mock.Target.Type, mock.Target.Name, b) {
 			continue
 		}
 		// Verify mock implements all exported interfaces
@@ -369,8 +375,8 @@ func (c *Resolving) checkDuplicateBeans() error {
 		if b.Status() == gs_bean.StatusDeleted {
 			continue
 		}
-		for _, t := range append(b.Exports(), b.Type()) {
-			beanID := gs.BeanID{Name: b.Name(), Type: t}
+		for _, t := range append(b.Exports(), b.GetType()) {
+			beanID := gs.BeanID{Name: b.GetName(), Type: t}
 			if d, ok := beansByID[beanID]; ok {
 				return util.FormatError(nil, "found duplicate beans [%s] [%s]", b, d)
 			}
@@ -419,14 +425,13 @@ func (c *ConditionContext) Prop(key string, def ...string) string {
 
 // Find returns all beans that match the provided selector
 // and are successfully resolved (active).
-func (c *ConditionContext) Find(s gs.BeanSelector) ([]gs.ConditionBean, error) {
+func (c *ConditionContext) Find(beanID gs.BeanID) ([]gs.ConditionBean, error) {
 	var found []gs.ConditionBean
-	t, name := s.TypeAndName()
 	for _, b := range c.c.beans {
 		if b.Status() == gs_bean.StatusResolving || b.Status() == gs_bean.StatusDeleted {
 			continue
 		}
-		if !isBeanMatched(t, name, b) {
+		if !isBeanMatched(beanID.Type, beanID.Name, b) {
 			continue
 		}
 		if err := c.resolveBean(b); err != nil {

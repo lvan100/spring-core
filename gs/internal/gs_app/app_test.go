@@ -80,12 +80,12 @@ func TestApp(t *testing.T) {
 		Reset()
 		t.Cleanup(Reset)
 
-		r := gs.FuncRunner(func(ctx context.Context) error {
+		r := FuncRunner(func(ctx context.Context) error {
 			panic("runner panic")
 		})
 
 		app := NewApp()
-		app.C.Provide(r).Export(gs.As[gs.Runner]())
+		app.C.Provide(r).Export(gs.As[Runner]())
 
 		assert.Panic(t, func() {
 			_ = app.Start()
@@ -96,12 +96,12 @@ func TestApp(t *testing.T) {
 		Reset()
 		t.Cleanup(Reset)
 
-		r := gs.FuncRunner(func(ctx context.Context) error {
+		r := FuncRunner(func(ctx context.Context) error {
 			return errors.New("runner return error")
 		})
 
 		app := NewApp()
-		app.C.Provide(r).Export(gs.As[gs.Runner]())
+		app.C.Provide(r).Export(gs.As[Runner]())
 		err := app.Start()
 		assert.Error(t, err).Matches("runner return error")
 	})
@@ -113,16 +113,16 @@ func TestApp(t *testing.T) {
 		app := NewApp()
 
 		// success
-		r1 := gs.FuncRunner(func(ctx context.Context) error {
+		r1 := FuncRunner(func(ctx context.Context) error {
 			return nil
 		})
-		app.C.Provide(r1).Export(gs.As[gs.Runner]()).Name("r1")
+		app.C.Provide(r1).Export(gs.As[Runner]()).Name("r1")
 
 		// error
-		r2 := gs.FuncRunner(func(ctx context.Context) error {
+		r2 := FuncRunner(func(ctx context.Context) error {
 			return errors.New("runner error")
 		})
-		app.C.Provide(r2).Export(gs.As[gs.Runner]()).Name("r2")
+		app.C.Provide(r2).Export(gs.As[Runner]()).Name("r2")
 
 		err := app.Start()
 		assert.Error(t, err).Matches("runner error")
@@ -156,12 +156,12 @@ func TestApp(t *testing.T) {
 		Reset()
 		t.Cleanup(Reset)
 
-		r := gs.FuncJob(func(ctx context.Context) error {
+		r := FuncJob(func(ctx context.Context) error {
 			panic("job panic")
 		})
 
 		app := NewApp()
-		app.C.Provide(r).Export(gs.As[gs.Job]())
+		app.C.Provide(r).Export(gs.As[Job]())
 		err := app.Start()
 		assert.That(t, err).Nil()
 		time.Sleep(50 * time.Millisecond)
@@ -172,12 +172,12 @@ func TestApp(t *testing.T) {
 		Reset()
 		t.Cleanup(Reset)
 
-		r := gs.FuncJob(func(ctx context.Context) error {
+		r := FuncJob(func(ctx context.Context) error {
 			return errors.New("job return error")
 		})
 
 		app := NewApp()
-		app.C.Provide(r).Export(gs.As[gs.Job]())
+		app.C.Provide(r).Export(gs.As[Job]())
 		err := app.Start()
 		assert.That(t, err).Nil()
 		time.Sleep(50 * time.Millisecond)
@@ -189,14 +189,14 @@ func TestApp(t *testing.T) {
 		t.Cleanup(Reset)
 
 		jobFinished := make(chan bool, 1)
-		r := gs.FuncJob(func(ctx context.Context) error {
+		r := FuncJob(func(ctx context.Context) error {
 			<-ctx.Done()
 			jobFinished <- true
 			return ctx.Err()
 		})
 
 		app := NewApp()
-		app.C.Provide(r).Export(gs.As[gs.Job]())
+		app.C.Provide(r).Export(gs.As[Job]())
 
 		go func() {
 			time.Sleep(50 * time.Millisecond)
@@ -215,12 +215,12 @@ func TestApp(t *testing.T) {
 		t.Cleanup(Reset)
 
 		m := gsmock.NewManager()
-		r := gs.NewServerMockImpl(m)
+		r := NewServerMockImpl(m)
 		r.MockShutdown().ReturnDefault()
 		r.MockListenAndServe().ReturnValue(errors.New("server return error"))
 
 		app := NewApp()
-		app.C.Provide(r).Export(gs.As[gs.Server]())
+		app.C.Provide(r).Export(gs.As[Server]())
 		err := app.Start()
 		assert.Error(t, err).String("server intercepted")
 		time.Sleep(50 * time.Millisecond)
@@ -232,14 +232,14 @@ func TestApp(t *testing.T) {
 		t.Cleanup(Reset)
 
 		m := gsmock.NewManager()
-		r := gs.NewServerMockImpl(m)
+		r := NewServerMockImpl(m)
 		r.MockShutdown().ReturnDefault()
-		r.MockListenAndServe().Handle(func(ctx context.Context, sig gs.ReadySignal) error {
+		r.MockListenAndServe().Handle(func(ctx context.Context, sig ReadySignal) error {
 			panic("server panic")
 		})
 
 		app := NewApp()
-		app.C.Provide(r).Export(gs.As[gs.Server]())
+		app.C.Provide(r).Export(gs.As[Server]())
 		err := app.Start()
 		assert.Error(t, err).String("server intercepted")
 		time.Sleep(50 * time.Millisecond)
@@ -252,27 +252,27 @@ func TestApp(t *testing.T) {
 
 		app := NewApp()
 		{
-			r := gs.FuncRunner(func(ctx context.Context) error {
+			r := FuncRunner(func(ctx context.Context) error {
 				return nil
 			})
-			app.C.Provide(r).Export(gs.As[gs.Runner]()).Name("r1")
+			app.C.Provide(r).Export(gs.As[Runner]()).Name("r1")
 		}
 		{
-			r := gs.FuncRunner(func(ctx context.Context) error {
+			r := FuncRunner(func(ctx context.Context) error {
 				return nil
 			})
-			app.C.Provide(r).Export(gs.As[gs.Runner]()).Name("r2")
+			app.C.Provide(r).Export(gs.As[Runner]()).Name("r2")
 		}
 		{
-			r := gs.FuncJob(func(ctx context.Context) error {
+			r := FuncJob(func(ctx context.Context) error {
 				<-ctx.Done()
 				return nil
 			})
-			app.C.Provide(r).Export(gs.As[gs.Job]()).Name("j1")
+			app.C.Provide(r).Export(gs.As[Job]()).Name("j1")
 		}
 		j2Wait := make(chan struct{}, 1)
 		{
-			r := gs.FuncJob(func(ctx context.Context) error {
+			r := FuncJob(func(ctx context.Context) error {
 				for {
 					time.Sleep(time.Millisecond)
 					if app.Exiting() {
@@ -281,29 +281,29 @@ func TestApp(t *testing.T) {
 					}
 				}
 			})
-			app.C.Provide(r).Export(gs.As[gs.Job]()).Name("j2")
+			app.C.Provide(r).Export(gs.As[Job]()).Name("j2")
 		}
 		{
 			m := gsmock.NewManager()
-			r := gs.NewServerMockImpl(m)
+			r := NewServerMockImpl(m)
 			r.MockShutdown().ReturnDefault()
-			r.MockListenAndServe().Handle(func(ctx context.Context, sig gs.ReadySignal) error {
+			r.MockListenAndServe().Handle(func(ctx context.Context, sig ReadySignal) error {
 				<-sig.TriggerAndWait()
 				return nil
 			})
 
-			app.C.Provide(r).Export(gs.As[gs.Server]()).Name("s1")
+			app.C.Provide(r).Export(gs.As[Server]()).Name("s1")
 		}
 		{
 			m := gsmock.NewManager()
-			r := gs.NewServerMockImpl(m)
+			r := NewServerMockImpl(m)
 			r.MockShutdown().ReturnDefault()
-			r.MockListenAndServe().Handle(func(ctx context.Context, sig gs.ReadySignal) error {
+			r.MockListenAndServe().Handle(func(ctx context.Context, sig ReadySignal) error {
 				<-sig.TriggerAndWait()
 				return nil
 			})
 
-			app.C.Provide(r).Export(gs.As[gs.Server]()).Name("s2")
+			app.C.Provide(r).Export(gs.As[Server]()).Name("s2")
 		}
 		go func() {
 			time.Sleep(50 * time.Millisecond)
@@ -329,16 +329,16 @@ func TestApp(t *testing.T) {
 		app := NewApp()
 
 		m := gsmock.NewManager()
-		r := gs.NewServerMockImpl(m)
+		r := NewServerMockImpl(m)
 		r.MockShutdown().Handle(func(ctx context.Context) error {
 			return errors.New("server shutdown error")
 		})
-		r.MockListenAndServe().Handle(func(ctx context.Context, sig gs.ReadySignal) error {
+		r.MockListenAndServe().Handle(func(ctx context.Context, sig ReadySignal) error {
 			<-sig.TriggerAndWait()
 			return nil
 		})
 
-		app.C.Provide(r).Export(gs.As[gs.Server]())
+		app.C.Provide(r).Export(gs.As[Server]())
 		go func() {
 			time.Sleep(50 * time.Millisecond)
 			app.ShutDown()

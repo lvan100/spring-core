@@ -190,18 +190,18 @@ func (b *TestBean) NewChildV2() (*ChildBean, error) {
 	return &ChildBean{b.Value}, nil
 }
 
-func objectBean(i any) *gs.BeanDefinition {
+func objectBean(i any) *gs_bean.BeanDefinition {
 	return gs_bean.NewBean(reflect.ValueOf(i))
 }
 
-func provideBean(ctor any, args ...gs.Arg) *gs.BeanDefinition {
+func provideBean(ctor any, args ...gs.Arg) *gs_bean.BeanDefinition {
 	return gs_bean.NewBean(ctor, args...)
 }
 
-func extractBeans(beans []*gs.BeanDefinition) (_, _ []*gs_bean.BeanDefinition) {
+func extractBeans(beans []*gs_bean.BeanDefinition) (_, _ []*gs_bean.BeanDefinition) {
 	var ret []*gs_bean.BeanDefinition
 	for _, b := range beans {
-		ret = append(ret, b.BeanRegistration().(*gs_bean.BeanDefinition))
+		ret = append(ret, b)
 	}
 	return ret, ret
 }
@@ -223,7 +223,7 @@ func TestInjecting(t *testing.T) {
 				"allow-circular-references": true,
 			},
 		}))
-		beans := []*gs.BeanDefinition{
+		beans := []*gs_bean.BeanDefinition{
 			objectBean(&LazyA{}),
 			objectBean(&LazyB{}),
 		}
@@ -233,7 +233,7 @@ func TestInjecting(t *testing.T) {
 
 	t.Run("lazy error - circular reference", func(t *testing.T) {
 		r := New(conf.New())
-		beans := []*gs.BeanDefinition{
+		beans := []*gs_bean.BeanDefinition{
 			objectBean(&LazyA{}),
 			objectBean(&LazyB{}),
 		}
@@ -247,7 +247,7 @@ func TestInjecting(t *testing.T) {
 				"allow-circular-references": true,
 			},
 		}))
-		beans := []*gs.BeanDefinition{
+		beans := []*gs_bean.BeanDefinition{
 			objectBean(&LazyA{}),
 			objectBean(&LazyB{}).Name("b"),
 		}
@@ -286,14 +286,14 @@ func TestInjecting(t *testing.T) {
 
 		myFilter := &FilterImpl{}
 
-		beans := []*gs.BeanDefinition{
+		beans := []*gs_bean.BeanDefinition{
 			objectBean(myFilter).Name("my_filter").Export(gs.As[Filter]()),
 			objectBean(&ReqFilter{}).Name("my_filter"),
 			objectBean(&Repository{}).InitMethod("Init").Destroy(func(r *Repository) {
 				r.stop <- struct{}{}
 			}),
 			objectBean(&Controller{}).DependsOn(
-				gs.BeanSelectorFor[*Service](),
+				gs.BeanIDFor[*Service](),
 			),
 			objectBean(&Service{}).DestroyMethod("Destroy").Init(func(s *Service) {
 				s.Status = 1
@@ -390,7 +390,7 @@ func TestInjecting(t *testing.T) {
 
 	t.Run("wire error - primitive type", func(t *testing.T) {
 		r := New(conf.New())
-		beans := []*gs.BeanDefinition{
+		beans := []*gs_bean.BeanDefinition{
 			objectBean(new(struct {
 				A int `autowire:""`
 			})),
@@ -401,7 +401,7 @@ func TestInjecting(t *testing.T) {
 
 	t.Run("wire error - ambiguous bean for single value", func(t *testing.T) {
 		r := New(conf.New())
-		beans := []*gs.BeanDefinition{
+		beans := []*gs_bean.BeanDefinition{
 			objectBean(new(struct {
 				Logger Logger `autowire:""`
 			})),
@@ -414,7 +414,7 @@ func TestInjecting(t *testing.T) {
 
 	t.Run("wire error - slice", func(t *testing.T) {
 		r := New(conf.New())
-		beans := []*gs.BeanDefinition{
+		beans := []*gs_bean.BeanDefinition{
 			objectBean(new(struct {
 				A []int `autowire:""`
 			})),
@@ -425,7 +425,7 @@ func TestInjecting(t *testing.T) {
 
 	t.Run("wire error - invalid collection pattern", func(t *testing.T) {
 		r := New(conf.New())
-		beans := []*gs.BeanDefinition{
+		beans := []*gs_bean.BeanDefinition{
 			objectBean(new(struct {
 				Loggers []Logger `autowire:"*,*"`
 			})),
@@ -436,7 +436,7 @@ func TestInjecting(t *testing.T) {
 
 	t.Run("wire error - ambiguous bean for collection", func(t *testing.T) {
 		r := New(conf.New())
-		beans := []*gs.BeanDefinition{
+		beans := []*gs_bean.BeanDefinition{
 			objectBean(new(struct {
 				Loggers []Logger `autowire:"biz,*"`
 			})),
@@ -449,7 +449,7 @@ func TestInjecting(t *testing.T) {
 
 	t.Run("wire error - no matching beans", func(t *testing.T) {
 		r := New(conf.New())
-		beans := []*gs.BeanDefinition{
+		beans := []*gs_bean.BeanDefinition{
 			objectBean(new(struct {
 				Loggers []Logger `autowire:""`
 			})),
@@ -460,7 +460,7 @@ func TestInjecting(t *testing.T) {
 
 	t.Run("wire error - bean not found", func(t *testing.T) {
 		r := New(conf.New())
-		beans := []*gs.BeanDefinition{
+		beans := []*gs_bean.BeanDefinition{
 			objectBean(new(struct {
 				Loggers []Logger `autowire:"sys"`
 			})),
@@ -471,7 +471,7 @@ func TestInjecting(t *testing.T) {
 
 	t.Run("wire error - init failure", func(t *testing.T) {
 		r := New(conf.New())
-		beans := []*gs.BeanDefinition{
+		beans := []*gs_bean.BeanDefinition{
 			objectBean(new(struct {
 				Loggers []Logger `autowire:"sys"`
 			})),
@@ -485,7 +485,7 @@ func TestInjecting(t *testing.T) {
 
 	t.Run("wire error - invalid tag", func(t *testing.T) {
 		r := New(conf.New())
-		beans := []*gs.BeanDefinition{
+		beans := []*gs_bean.BeanDefinition{
 			objectBean(new(struct {
 				Loggers []Logger `autowire:"${"`
 			})),
@@ -496,7 +496,7 @@ func TestInjecting(t *testing.T) {
 
 	t.Run("wire error - invalid collection tag", func(t *testing.T) {
 		r := New(conf.New())
-		beans := []*gs.BeanDefinition{
+		beans := []*gs_bean.BeanDefinition{
 			objectBean(new(struct {
 				Loggers []Logger `autowire:"*?,${"`
 			})),
@@ -510,7 +510,7 @@ func TestInjecting(t *testing.T) {
 		s := new(struct {
 			Loggers [3]Logger `autowire:"*?"`
 		})
-		beans := []*gs.BeanDefinition{
+		beans := []*gs_bean.BeanDefinition{
 			objectBean(s),
 			objectBean(&SimpleLogger{}).Export(gs.As[Logger]()),
 		}
@@ -521,9 +521,9 @@ func TestInjecting(t *testing.T) {
 
 	t.Run("wire error - missing property", func(t *testing.T) {
 		r := New(conf.New())
-		beans := []*gs.BeanDefinition{
+		beans := []*gs_bean.BeanDefinition{
 			objectBean(&SimpleLogger{}).DependsOn(
-				gs.BeanSelectorFor[*ZeroLogger](),
+				gs.BeanIDFor[*ZeroLogger](),
 			),
 			provideBean(NewZeroLogger),
 		}
@@ -540,7 +540,7 @@ func TestInjecting(t *testing.T) {
 		s := struct {
 			Logger *ZeroLogger `inject:""`
 		}{}
-		beans := []*gs.BeanDefinition{
+		beans := []*gs_bean.BeanDefinition{
 			objectBean(&s),
 			provideBean(NewZeroLogger),
 		}
@@ -554,7 +554,7 @@ func TestInjecting(t *testing.T) {
 		s := struct {
 			Logger *ZeroLogger `inject:""`
 		}{}
-		beans := []*gs.BeanDefinition{
+		beans := []*gs_bean.BeanDefinition{
 			objectBean(&s),
 			provideBean(func() (*ZeroLogger, error) {
 				return nil, errors.New("init error")
@@ -573,7 +573,7 @@ func TestInjecting(t *testing.T) {
 		s := struct {
 			Logger *ZeroLogger `inject:""`
 		}{}
-		beans := []*gs.BeanDefinition{
+		beans := []*gs_bean.BeanDefinition{
 			objectBean(&s),
 			provideBean(func() (*ZeroLogger, error) {
 				return nil, errors.New("init error")
@@ -586,7 +586,7 @@ func TestInjecting(t *testing.T) {
 
 	t.Run("wire error - provider returning error - 3", func(t *testing.T) {
 		r := New(conf.New())
-		beans := []*gs.BeanDefinition{
+		beans := []*gs_bean.BeanDefinition{
 			provideBean(func() (*ZeroLogger, error) {
 				return nil, nil
 			}),
@@ -605,7 +605,7 @@ func TestInjecting(t *testing.T) {
 
 	t.Run("wire error - malformed tag", func(t *testing.T) {
 		r := New(conf.New())
-		beans := []*gs.BeanDefinition{
+		beans := []*gs_bean.BeanDefinition{
 			objectBean(new(struct {
 				Int int `value:"int"`
 			})),
@@ -616,7 +616,7 @@ func TestInjecting(t *testing.T) {
 
 	t.Run("wire error - struct - missing properties", func(t *testing.T) {
 		r := New(conf.New())
-		beans := []*gs.BeanDefinition{
+		beans := []*gs_bean.BeanDefinition{
 			objectBean(new(struct {
 				ServiceConfig
 			})),
@@ -627,7 +627,7 @@ func TestInjecting(t *testing.T) {
 
 	t.Run("wire error - struct - missing prefixed properties", func(t *testing.T) {
 		r := New(conf.New())
-		beans := []*gs.BeanDefinition{
+		beans := []*gs_bean.BeanDefinition{
 			objectBean(new(struct {
 				ServiceConfig `value:"${svr}"`
 			})),
@@ -638,7 +638,7 @@ func TestInjecting(t *testing.T) {
 
 	t.Run("wire error - destruction failure", func(t *testing.T) {
 		r := New(conf.New())
-		beans := []*gs.BeanDefinition{
+		beans := []*gs_bean.BeanDefinition{
 			objectBean(&SimpleLogger{}).Destroy(func(l *SimpleLogger) error {
 				return errors.New("destroy error")
 			}),
@@ -650,7 +650,7 @@ func TestInjecting(t *testing.T) {
 
 	t.Run("map injection", func(t *testing.T) {
 		r := New(conf.New())
-		beans := []*gs.BeanDefinition{
+		beans := []*gs_bean.BeanDefinition{
 			objectBean(&ZeroLogger{}).Name("logger1").Export(gs.As[CtxLogger]()),
 			objectBean(&ZeroLogger{}).Name("logger2").Export(gs.As[CtxLogger]()),
 			objectBean(new(struct {
@@ -775,7 +775,7 @@ func TestCircularBean(t *testing.T) {
 
 	t.Run("not truly circular - object", func(t *testing.T) {
 		r := New(conf.New())
-		beans := []*gs.BeanDefinition{
+		beans := []*gs_bean.BeanDefinition{
 			objectBean(&A{}),
 			objectBean(&B{}),
 			objectBean(&C{}),
@@ -796,7 +796,7 @@ func TestCircularBean(t *testing.T) {
 
 	t.Run("not truly circular - constructor", func(t *testing.T) {
 		r := New(conf.New())
-		beans := []*gs.BeanDefinition{
+		beans := []*gs_bean.BeanDefinition{
 			objectBean(&C{}),
 			objectBean(&D{}),
 			provideBean(NewE, gs_arg.Index(1, gs_arg.Tag("?"))),
@@ -817,7 +817,7 @@ func TestCircularBean(t *testing.T) {
 
 	t.Run("found circular - direct", func(t *testing.T) {
 		r := New(conf.New())
-		beans := []*gs.BeanDefinition{
+		beans := []*gs_bean.BeanDefinition{
 			provideBean(NewE, gs_arg.Tag("?")),
 			objectBean(&F{}),
 			provideBean(NewG),
@@ -828,7 +828,7 @@ func TestCircularBean(t *testing.T) {
 
 	t.Run("found circular - indirect", func(t *testing.T) {
 		r := New(conf.New())
-		beans := []*gs.BeanDefinition{
+		beans := []*gs_bean.BeanDefinition{
 			provideBean(NewH),
 			objectBean(&I{}),
 			provideBean(NewJ),
@@ -843,7 +843,7 @@ func TestCircularBean(t *testing.T) {
 				"allow-circular-references": true,
 			},
 		}))
-		beans := []*gs.BeanDefinition{
+		beans := []*gs_bean.BeanDefinition{
 			provideBean(NewH),
 			objectBean(&I{}),
 			provideBean(NewJ),
@@ -910,7 +910,7 @@ func TestDestroy(t *testing.T) {
 
 	t.Run("independent", func(t *testing.T) {
 		r := New(conf.New())
-		beans := []*gs.BeanDefinition{
+		beans := []*gs_bean.BeanDefinition{
 			objectBean(&Counter{}),
 			objectBean(&DestroyA{}).Destroy(func(d *DestroyA) {
 				d.value = d.Counter.Incr()
@@ -932,7 +932,7 @@ func TestDestroy(t *testing.T) {
 
 	t.Run("dependency", func(t *testing.T) {
 		r := New(conf.New())
-		beans := []*gs.BeanDefinition{
+		beans := []*gs_bean.BeanDefinition{
 			objectBean(&Counter{}),
 			objectBean(&DestroyC{}).Destroy(func(d *DestroyC) {
 				d.value = d.Counter.Incr()
@@ -979,7 +979,7 @@ func TestForceClean(t *testing.T) {
 			release[s] = struct{}{}
 		}, "sys")
 
-		beans := []*gs.BeanDefinition{b1, b2}
+		beans := []*gs_bean.BeanDefinition{b1, b2}
 		err := r.Refresh(extractBeans(beans))
 		assert.That(t, err).Nil()
 		assert.That(t, r.p).Nil()
@@ -1000,7 +1000,7 @@ func TestForceClean(t *testing.T) {
 				"force-clean": true,
 			},
 		}))
-		beans := []*gs.BeanDefinition{
+		beans := []*gs_bean.BeanDefinition{
 			objectBean(&DyncValue{}).Name("biz"),
 			objectBean(&SimpleLogger{}).Name("sys"),
 		}
