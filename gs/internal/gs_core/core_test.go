@@ -25,6 +25,7 @@ import (
 	"github.com/go-spring/spring-core/conf"
 	"github.com/go-spring/spring-core/gs/internal/gs"
 	"github.com/go-spring/spring-core/gs/internal/gs_arg"
+	"github.com/go-spring/spring-core/gs/internal/gs_bean"
 	"github.com/go-spring/spring-core/gs/internal/gs_cond"
 )
 
@@ -32,59 +33,67 @@ func TestContainer(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		c := New()
-		c.Provide(&http.Server{}).Root()
-		err := c.Refresh(conf.New())
+		roots := []*gs_bean.BeanDefinition{
+			c.Provide(&http.Server{}),
+		}
+		err := c.Refresh(conf.New(), roots)
 		assert.That(t, err).Nil()
 		c.Close()
 	})
 
 	t.Run("resolve error", func(t *testing.T) {
 		c := New()
-		c.Provide(&http.Server{}).Condition(
-			gs_cond.OnFunc(func(ctx gs.ConditionContext) (bool, error) {
-				return false, errors.New("condition error")
-			}),
-		).Root()
-		err := c.Refresh(conf.New())
+		roots := []*gs_bean.BeanDefinition{
+			c.Provide(&http.Server{}).Condition(
+				gs_cond.OnFunc(func(ctx gs.ConditionContext) (bool, error) {
+					return false, errors.New("condition error")
+				}),
+			),
+		}
+		err := c.Refresh(conf.New(), roots)
 		assert.Error(t, err).Matches("condition error")
 	})
 
 	t.Run("inject error", func(t *testing.T) {
 		c := New()
-		c.Provide(func(addr string) *http.Server { return nil }).Root()
-		err := c.Refresh(conf.New())
+		roots := []*gs_bean.BeanDefinition{
+			c.Provide(func(addr string) *http.Server { return nil }),
+		}
+		err := c.Refresh(conf.New(), roots)
 		assert.Error(t, err).Matches("property \"\" not exist")
 	})
 
 	t.Run("duplicate object registration", func(t *testing.T) {
 		c := New()
-		c.Provide(&http.Server{}).Root()
-		c.Provide(&http.Server{}).Root()
-		err := c.Refresh(conf.New())
+		roots := []*gs_bean.BeanDefinition{
+			c.Provide(&http.Server{}),
+			c.Provide(&http.Server{}),
+		}
+		err := c.Refresh(conf.New(), roots)
 		assert.Error(t, err).Matches("found duplicate beans")
 	})
 
 	t.Run("provide with dependency", func(t *testing.T) {
 		c := New()
-
-		c.Provide(func(addr string) *http.Server {
-			return &http.Server{Addr: addr}
-		}, gs_arg.Tag("${server.address:=:9090}")).Root()
-
+		roots := []*gs_bean.BeanDefinition{
+			c.Provide(func(addr string) *http.Server {
+				return &http.Server{Addr: addr}
+			}, gs_arg.Tag("${server.address:=:9090}")),
+		}
 		err := c.Refresh(conf.Map(map[string]any{
 			"server.address": ":8080",
-		}))
+		}), roots)
 		assert.That(t, err).Nil()
 	})
 
 	t.Run("provide with missing dependency", func(t *testing.T) {
 		c := New()
-
-		c.Provide(func(addr string) *http.Server {
-			return &http.Server{Addr: addr}
-		}, gs_arg.Tag("${server.address}")).Root()
-
-		err := c.Refresh(conf.New())
+		roots := []*gs_bean.BeanDefinition{
+			c.Provide(func(addr string) *http.Server {
+				return &http.Server{Addr: addr}
+			}, gs_arg.Tag("${server.address}")),
+		}
+		err := c.Refresh(conf.New(), roots)
 		assert.Error(t, err).Matches("property \"server.address\" not exist")
 	})
 }

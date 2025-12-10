@@ -20,12 +20,14 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"reflect"
 	"syscall"
+	"testing"
 
 	"github.com/go-spring/log"
 	"github.com/go-spring/spring-base/util"
+	"github.com/go-spring/spring-core/gs/internal/gs"
 	"github.com/go-spring/spring-core/gs/internal/gs_app"
-	"github.com/go-spring/spring-core/gs/internal/gs_bean"
 )
 
 // started indicates whether the application has started.
@@ -45,69 +47,48 @@ func NewApp() *AppStarter {
 	}
 }
 
-// Web enables or disables the built-in HTTP server.
-func (s *AppStarter) Web(enable bool) *AppStarter {
-	EnableSimpleHttpServer(enable)
-	return s
-}
-
 // Configure sets the application configuration provider.
 func (s *AppStarter) Configure(f func(cfg gs_app.AppConfigurer)) *AppStarter {
 	s.app.Configure(f)
 	return s
 }
 
-// Provide registers a bean definition.
-func (s *AppStarter) Provide(objOrCtor any, args ...Arg) *gs_bean.BeanDefinition {
-	return s.app.Provide(objOrCtor, args...).Caller(1)
-}
+// Start starts the application asynchronously and returns a function
+// that can be used to trigger shutdown from outside.
+func (s *AppStarter) Start() error {
 
-// startApp initializes logging, and starts the main application.
-func (s *AppStarter) startApp() error {
-
-	// Print application banner at startup
+	// Print banner
 	printBanner()
 
-	// Initialize logger
-	if err := initLog(); err != nil {
+	// Start application
+	if err := s.app.Start(); err != nil {
+		err = util.WrapError(err, "start app failed")
+		log.Errorf(context.Background(), log.TagAppDef, "%s", err)
 		return err
 	}
 
-	// Start the application
-	if err := s.app.Start(); err != nil {
-		return err
-	}
 	return nil
 }
 
-// stopApp waits for the application to shut down and cleans up resources.
-// NOTE: ShutDown() must be called before invoking this function.
-func (s *AppStarter) stopApp() {
+// Stop triggers graceful shutdown of the application.
+func (s *AppStarter) Stop() {
+	s.app.ShutDown()
 	s.app.WaitForShutdown()
-	log.Destroy()
+}
+
+// Run starts the application with a custom run function.
+func Run() error {
+	return NewApp().Run()
 }
 
 // Run starts the application, optionally runs a user-defined callback,
 // and waits for termination signals (e.g., SIGTERM, Ctrl+C) to trigger graceful shutdown.
-func (s *AppStarter) Run(fn ...func() error) {
+func (s *AppStarter) Run() error {
 
-	// Start application
-	if err := s.startApp(); err != nil {
-		err = util.WrapError(err, "start app failed")
-		log.Errorf(context.Background(), log.TagAppDef, "%s", err)
-		return
+	if err := s.Start(); err != nil {
+		return err
 	}
 
-	// Execute user-provided callback after app starts
-	if len(fn) > 0 && fn[0] != nil {
-		if err := fn[0](); err != nil {
-			err = util.WrapError(err, "start app failed")
-			log.Errorf(context.Background(), log.TagAppDef, "%s", err)
-			return
-		}
-	}
-
-	// Start a goroutine to listen for OS interrupt or termination signals
 	go func() {
 		ch := make(chan os.Signal, 1)
 		signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
@@ -118,24 +99,30 @@ func (s *AppStarter) Run(fn ...func() error) {
 		s.app.ShutDown()
 	}()
 
-	// Wait until shutdown completes
-	s.stopApp()
+	s.app.WaitForShutdown()
+	return nil
 }
 
-// RunAsync starts the application asynchronously and returns a function
-// that can be used to trigger shutdown from outside.
-func (s *AppStarter) RunAsync() (func(), error) {
+// RunTest runs a test function.
+func RunTest(t *testing.T, f any) {
+	NewApp().RunTest(t, f)
+}
 
-	// Start application
-	if err := s.startApp(); err != nil {
-		err = util.WrapError(err, "start app failed")
-		log.Errorf(context.Background(), log.TagAppDef, "%s", err)
-		return nil, err
+// RunTest runs a user-defined test function.
+func (s *AppStarter) RunTest(t *testing.T, f any) {
+	ft := reflect.TypeOf(f)
+	obj := reflect.New(ft.In(0).Elem())
+
+	// 提供测试对象
+	s.app.Provide(obj.Interface()).
+		Name("__tester__").
+		Export(gs.As[any]())
+
+	if err := s.Start(); err != nil {
+		t.Fatal(err)
 	}
+	defer func() { s.Stop() }()
 
-	// Return a shutdown function
-	return func() {
-		s.app.ShutDown()
-		s.stopApp()
-	}, nil
+	// 执行测试函数
+	reflect.ValueOf(f).Call([]reflect.Value{obj})
 }

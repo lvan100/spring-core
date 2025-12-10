@@ -21,6 +21,7 @@ package gs_core
 
 import (
 	"github.com/go-spring/spring-core/conf"
+	"github.com/go-spring/spring-core/gs/internal/gs_bean"
 	"github.com/go-spring/spring-core/gs/internal/gs_core/injecting"
 	"github.com/go-spring/spring-core/gs/internal/gs_core/resolving"
 )
@@ -53,7 +54,7 @@ func New() *Container {
 }
 
 // Refresh performs the full lifecycle initialization of the container.
-func (c *Container) Refresh(p conf.Properties) error {
+func (c *Container) Refresh(p conf.Properties, roots []*gs_bean.BeanDefinition) error {
 	c.State = Refreshing
 
 	// Step 1: Resolve and prepare all bean definitions.
@@ -63,7 +64,7 @@ func (c *Container) Refresh(p conf.Properties) error {
 
 	// Step 2: Run the injecting phase and perform dependency wiring.
 	c.Injecting = injecting.New(p)
-	if err := c.Injecting.Refresh(c.Roots(), c.Beans()); err != nil {
+	if err := c.Injecting.Refresh(roots, c.Beans()); err != nil {
 		return err
 	}
 

@@ -50,11 +50,6 @@ import (
 // osStat only for test.
 var osStat = os.Stat
 
-// SysConf is the global built-in configuration instance
-// which usually holds the framework’s own default properties.
-// It is loaded before any environment, file or command-line overrides.
-var SysConf = conf.New()
-
 // PropertyCopier defines the interface for any configuration source
 // that can copy its key-value pairs into a target conf.MutableProperties.
 type PropertyCopier interface {
@@ -81,28 +76,6 @@ func (c *NamedPropertyCopier) CopyTo(out *conf.MutableProperties) error {
 	return nil
 }
 
-/******************************** SysConfig **********************************/
-
-// SysConfig represents the init-level configuration layer
-// composed of environment variables and command-line arguments.
-type SysConfig struct {
-	Environment *Environment // Environment variables as configuration source.
-	CommandArgs *CommandArgs // Command-line arguments as configuration source.
-}
-
-// Refresh collects properties from the system configuration sources
-// (built-in SysConf, environment variables, and command-line arguments)
-// and merges them into a single immutable conf.Properties.
-func (c *SysConfig) Refresh() (conf.Properties, error) {
-	return merge(
-		NewNamedPropertyCopier("sys", SysConf),
-		NewNamedPropertyCopier("env", c.Environment),
-		NewNamedPropertyCopier("cmd", c.CommandArgs),
-	)
-}
-
-/******************************** AppConfig **********************************/
-
 // AppConfig represents a layered configuration for the application runtime.
 // The layers, in their merge order, typically include:
 //
@@ -115,16 +88,18 @@ func (c *SysConfig) Refresh() (conf.Properties, error) {
 //
 // Layers appearing later in the list override earlier ones when keys conflict.
 type AppConfig struct {
-	LocalFile   *PropertySources // Configuration sources from local files.
-	RemoteFile  *PropertySources // Configuration sources from remote files.
-	RemoteProp  conf.Properties  // Properties fetched from a remote server.
-	Environment *Environment     // Environment variables as configuration source.
-	CommandArgs *CommandArgs     // Command-line arguments as configuration source.
+	Properties  *conf.MutableProperties // Properties ...
+	LocalFile   *PropertySources        // Configuration sources from local files.
+	RemoteFile  *PropertySources        // Configuration sources from remote files.
+	RemoteProp  conf.Properties         // Properties fetched from a remote server.
+	Environment *Environment            // Environment variables as configuration source.
+	CommandArgs *CommandArgs            // Command-line arguments as configuration source.
 }
 
 // NewAppConfig creates a new instance of AppConfig.
 func NewAppConfig() *AppConfig {
 	return &AppConfig{
+		Properties:  conf.New(),
 		LocalFile:   NewPropertySources(ConfigTypeLocal, "app"),
 		RemoteFile:  NewPropertySources(ConfigTypeRemote, "app"),
 		Environment: NewEnvironment(),
@@ -148,9 +123,20 @@ func merge(sources ...*NamedPropertyCopier) (conf.Properties, error) {
 	return out, nil
 }
 
+// SysConfig returns the system configuration, which includes the
+// properties from the system defaults, environment variables, and
+// command-line arguments.
+func (c *AppConfig) SysConfig() (conf.Properties, error) {
+	return merge(
+		NewNamedPropertyCopier("sys", c.Properties),
+		NewNamedPropertyCopier("env", c.Environment),
+		NewNamedPropertyCopier("cmd", c.CommandArgs),
+	)
+}
+
 // Refresh merges all layers of configurations into a read-only properties.
 func (c *AppConfig) Refresh() (conf.Properties, error) {
-	p, err := new(SysConfig).Refresh()
+	p, err := c.SysConfig()
 	if err != nil {
 		return nil, util.WrapError(err, "refresh error in source sys")
 	}
@@ -166,7 +152,7 @@ func (c *AppConfig) Refresh() (conf.Properties, error) {
 	}
 
 	var sources []*NamedPropertyCopier
-	sources = append(sources, NewNamedPropertyCopier("sys", SysConf))
+	sources = append(sources, NewNamedPropertyCopier("sys", c.Properties))
 	sources = append(sources, localFiles...)
 	sources = append(sources, remoteFiles...)
 	sources = append(sources, NewNamedPropertyCopier("remote", c.RemoteProp))

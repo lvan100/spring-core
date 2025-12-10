@@ -28,7 +28,6 @@ import (
 func clean() {
 	os.Args = nil
 	os.Clearenv()
-	SysConf = conf.New()
 }
 
 func TestAppConfig(t *testing.T) {
@@ -73,17 +72,19 @@ func TestAppConfig(t *testing.T) {
 	t.Run("merge error - sys", func(t *testing.T) {
 		t.Cleanup(clean)
 		_ = os.Setenv("GS_SPRING_APP_CONFIG-LOCAL_DIR", "./testdata/conf")
-		fileID := SysConf.AddFile("conf_test.go")
-		_ = SysConf.Set("http.server[0].addr", "0.0.0.0:8080", fileID)
-		_, err := NewAppConfig().Refresh()
+		c := NewAppConfig()
+		fileID := c.Properties.AddFile("conf_test.go")
+		_ = c.Properties.Set("http.server[0].addr", "0.0.0.0:8080", fileID)
+		_, err := c.Refresh()
 		assert.Error(t, err).Matches("property conflict at path http.server.addr")
 	})
 
 	t.Run("load from sys conf", func(t *testing.T) {
 		t.Cleanup(clean)
-		fileID := SysConf.AddFile("test")
-		_ = SysConf.Set("spring.app.name", "sysconf-test", fileID)
-		p, err := NewAppConfig().Refresh()
+		c := NewAppConfig()
+		fileID := c.Properties.AddFile("test")
+		_ = c.Properties.Set("spring.app.name", "sysconf-test", fileID)
+		p, err := c.Refresh()
 		assert.That(t, err).Nil()
 		assert.That(t, p.Get("spring.app.name")).Equal("sysconf-test")
 	})

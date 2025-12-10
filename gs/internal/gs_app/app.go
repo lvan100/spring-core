@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"runtime"
 	"sync"
 	"sync/atomic"
 
@@ -88,10 +89,17 @@ type Server interface {
 	Shutdown(ctx context.Context) error
 }
 
+// ConfigRefresher is an interface for components that need to refresh
+// application properties after configuration changes.
+type ConfigRefresher interface {
+	RefreshProperties() error
+}
+
 // AppConfigurer ...
 type AppConfigurer interface {
 	Config() *gs_conf.AppConfig
-	RefreshProperties() error
+	Property(key string, val string)
+	Provide(objOrCtor any, args ...gs.Arg) *gs_bean.BeanDefinition
 }
 
 // App represents the core application, managing its lifecycle,
@@ -113,6 +121,8 @@ type App struct {
 
 	EnableJobs    bool `value:"${spring.app.enable-jobs:=true}"`
 	EnableServers bool `value:"${spring.app.enable-servers:=true}"`
+
+	Tester any `autowire:"__tester__?"` // 测试模式作为根 Bean 角色
 }
 
 // NewApp creates and initializes a new application instance.
@@ -129,6 +139,15 @@ func NewApp() *App {
 // Config returns the current application configuration.
 func (app *App) Config() *gs_conf.AppConfig {
 	return app.p
+}
+
+// Property sets a system property.
+func (app *App) Property(key string, val string) {
+	_, file, _, _ := runtime.Caller(1)
+	fileID := app.p.Properties.AddFile(file)
+	if err := app.p.Properties.Set(key, val, fileID); err != nil {
+		log.Errorf(app.ctx, log.TagAppDef, "failed to set property key=%s err=%v", key, err)
+	}
 }
 
 // RefreshProperties reloads application properties from all sources.
@@ -148,7 +167,7 @@ func (app *App) Configure(configure func(cfg AppConfigurer)) {
 // Provide registers a bean definition.
 // It accepts either an existing instance or a constructor function.
 func (app *App) Provide(objOrCtor any, args ...gs.Arg) *gs_bean.BeanDefinition {
-	return app.c.Provide(objOrCtor, args...)
+	return app.c.Provide(objOrCtor, args...).Caller(1)
 }
 
 // Start initializes and launches the application. It performs the following steps:
@@ -159,8 +178,15 @@ func (app *App) Provide(objOrCtor any, args ...gs.Arg) *gs_bean.BeanDefinition {
 // 5. Launches Jobs (if enabled) as background goroutines.
 // 6. Starts all Servers (if enabled) and waits for readiness.
 func (app *App) Start() error {
-	// Register App as a root bean in the container
-	app.c.Provide(app).Root()
+
+	// Initialize logger
+	if err := app.initLog(); err != nil {
+		return err
+	}
+
+	roots := []*gs_bean.BeanDefinition{
+		app.c.Provide(app).Export(gs.As[ConfigRefresher]()),
+	}
 
 	// Configure the application
 	if app.configure != nil {
@@ -177,7 +203,7 @@ func (app *App) Start() error {
 	}
 
 	// Refresh the container to wire all beans
-	if err := app.c.Refresh(p); err != nil {
+	if err := app.c.Refresh(p, roots); err != nil {
 		return err
 	}
 
@@ -265,6 +291,7 @@ func (app *App) WaitForShutdown() {
 	app.wg.Wait()
 	app.c.Close()
 	log.Infof(app.ctx, log.TagAppDef, "shutdown complete")
+	log.Destroy()
 }
 
 // Exiting returns whether the application is currently in the process of shutting down.

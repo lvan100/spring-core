@@ -19,18 +19,14 @@ package gs
 import (
 	"context"
 	"reflect"
-	"runtime"
 	"strings"
-	"testing"
 
-	"github.com/go-spring/log"
 	"github.com/go-spring/spring-core/conf"
 	"github.com/go-spring/spring-core/gs/internal/gs"
 	"github.com/go-spring/spring-core/gs/internal/gs_app"
 	"github.com/go-spring/spring-core/gs/internal/gs_arg"
 	"github.com/go-spring/spring-core/gs/internal/gs_bean"
 	"github.com/go-spring/spring-core/gs/internal/gs_cond"
-	"github.com/go-spring/spring-core/gs/internal/gs_conf"
 	"github.com/go-spring/spring-core/gs/internal/gs_dync"
 	"github.com/go-spring/spring-core/gs/internal/gs_init"
 )
@@ -196,15 +192,6 @@ func FuncJob(fn func(ctx context.Context) error) Job {
 	return gs_app.FuncJob(fn)
 }
 
-// Property sets a system property.
-func Property(key string, val string) {
-	_, file, _, _ := runtime.Caller(1)
-	fileID := gs_conf.SysConf.AddFile(file)
-	if err := gs_conf.SysConf.Set(key, val, fileID); err != nil {
-		log.Errorf(context.Background(), log.TagAppDef, "failed to set property key=%s err=%v", key, err)
-	}
-}
-
 // Provide registers a bean definition. 全局函数。
 // It accepts either an existing instance or a constructor function.
 // The optional args are used to bind parameters for the constructor or to
@@ -250,28 +237,4 @@ func Group[T any, R any](tag string, fn func(c T) (R, error), d func(R) error) {
 		}
 		return nil
 	})
-}
-
-// Run starts the application with a custom run function.
-func Run(fn ...func() error) {
-	NewApp().Run(fn...)
-}
-
-// RunAsync starts the application asynchronously and
-// returns a stop function to gracefully shut it down.
-func RunAsync() (func(), error) {
-	return NewApp().RunAsync()
-}
-
-// RunTest runs a test function with an automatically started application.
-func RunTest[T any](t *testing.T, f func(s *T)) {
-	app := NewApp()
-	s := new(T)
-	app.Provide(s).Root()
-	stop, err := app.RunAsync()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { stop() }()
-	f(s)
 }

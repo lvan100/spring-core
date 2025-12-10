@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"net/http"
 	"os"
 	"testing"
 	"time"
@@ -28,9 +27,7 @@ import (
 	"github.com/go-spring/gs-mock/gsmock"
 	"github.com/go-spring/log"
 	"github.com/go-spring/spring-base/testing/assert"
-	"github.com/go-spring/spring-core/conf"
 	"github.com/go-spring/spring-core/gs/internal/gs"
-	"github.com/go-spring/spring-core/gs/internal/gs_conf"
 	"github.com/go-spring/spring-core/util/goutil"
 )
 
@@ -47,7 +44,6 @@ func Reset() {
 	log.Stdout = logBuf
 	os.Args = nil
 	os.Clearenv()
-	gs_conf.SysConf = conf.New()
 }
 
 func TestApp(t *testing.T) {
@@ -56,10 +52,9 @@ func TestApp(t *testing.T) {
 		Reset()
 		t.Cleanup(Reset)
 
-		fileID := gs_conf.SysConf.AddFile("app_test.go")
-		_ = gs_conf.SysConf.Set("a", "123", fileID)
-		_ = os.Setenv("GS_A_B", "456")
 		app := NewApp()
+		app.Property("a", "123")
+		_ = os.Setenv("GS_A_B", "456")
 		err := app.Start()
 		assert.Error(t, err).Matches("property conflict at path a.b")
 	})
@@ -69,9 +64,9 @@ func TestApp(t *testing.T) {
 		t.Cleanup(Reset)
 
 		app := NewApp()
-		app.c.Provide(func() (*http.Server, error) {
+		app.c.Provide(func() (Runner, error) {
 			return nil, errors.New("fail to create bean")
-		}).Root()
+		})
 		err := app.Start()
 		assert.Error(t, err).Matches("fail to create bean")
 	})
@@ -132,10 +127,9 @@ func TestApp(t *testing.T) {
 		Reset()
 		t.Cleanup(Reset)
 
-		fileID := gs_conf.SysConf.AddFile("app_test.go")
-		_ = gs_conf.SysConf.Set("spring.app.enable-jobs", "false", fileID)
-		_ = gs_conf.SysConf.Set("spring.app.enable-servers", "false", fileID)
 		app := NewApp()
+		app.Property("spring.app.enable-jobs", "false")
+		app.Property("spring.app.enable-servers", "false")
 		go func() {
 			time.Sleep(50 * time.Millisecond)
 			assert.That(t, app.EnableJobs).False()

@@ -45,17 +45,11 @@ const (
 type Resolving struct {
 	state RefreshState              // current refresh state
 	beans []*gs_bean.BeanDefinition // all beans managed by the container
-	roots []*gs_bean.BeanDefinition // root beans to wire at the end
 }
 
 // New creates an empty Resolving instance.
 func New() *Resolving {
 	return &Resolving{}
-}
-
-// Roots returns all root beans.
-func (c *Resolving) Roots() []*gs_bean.BeanDefinition {
-	return c.roots
 }
 
 // Beans returns all active bean definitions, excluding deleted ones.
@@ -112,15 +106,6 @@ func (c *Resolving) Refresh(p conf.Properties) error {
 
 	if err := c.checkDuplicateBeans(); err != nil {
 		return err
-	}
-
-	for _, b := range c.roots {
-		if b.Status() == gs_bean.StatusDeleted {
-			continue
-		}
-		if b.Status() != gs_bean.StatusResolved {
-			return util.FormatError(nil, "bean %q status is invalid for wiring", b)
-		}
 	}
 
 	c.state = Refreshed
@@ -246,9 +231,6 @@ func (c *Resolving) resolveBeans(p conf.Properties) error {
 	for _, b := range c.beans {
 		if err := ctx.resolveBean(b); err != nil {
 			return util.FormatError(err, "resolve bean error")
-		}
-		if b.IsRoot() && b.Status() == gs_bean.StatusResolved {
-			c.roots = append(c.roots, b)
 		}
 	}
 	return nil

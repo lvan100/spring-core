@@ -85,7 +85,6 @@ type BeanDefinition struct {
 	status        BeanStatus       // Current lifecycle status
 	fileLine      string           // File and line where bean is defined
 	configuration *Configuration   // Configuration for sub/child beans
-	root          bool             // 是否为 root 类型的 bean
 }
 
 // Clone 克隆一个 BeanDefinition 对象
@@ -325,17 +324,6 @@ func (d *BeanDefinition) OnProfiles(profiles string) *BeanDefinition {
 		}
 		return false, nil
 	}))
-	return d
-}
-
-// IsRoot returns true if the bean is a root bean.
-func (d *BeanDefinition) IsRoot() bool {
-	return d.root
-}
-
-// Root marks the bean as a root bean.
-func (d *BeanDefinition) Root() *BeanDefinition {
-	d.root = true
 	return d
 }
 
