@@ -24,11 +24,33 @@ import (
 
 	"github.com/go-spring/log"
 	"github.com/go-spring/spring-base/util"
+	"github.com/go-spring/spring-core/gs/internal/gs_app"
 )
 
 // AppStarter is a wrapper to manage the lifecycle of a Spring application.
 // It handles initialization, running, graceful shutdown, and logging.
-type AppStarter struct{}
+type AppStarter struct {
+	app *gs_app.App
+}
+
+// NewApp creates a new AppStarter instance.
+func NewApp() *AppStarter {
+	return &AppStarter{
+		app: gs_app.NewApp(),
+	}
+}
+
+// Web enables or disables the built-in HTTP server.
+func (s *AppStarter) Web(enable bool) *AppStarter {
+	EnableSimpleHttpServer(enable)
+	return s
+}
+
+// Configure sets the application configuration provider.
+func (s *AppStarter) Configure(f func(cfg gs_app.AppConfigurer)) *AppStarter {
+	s.app.Configure(f)
+	return s
+}
 
 // startApp initializes logging, and starts the main application.
 func (s *AppStarter) startApp() error {
@@ -42,7 +64,7 @@ func (s *AppStarter) startApp() error {
 	}
 
 	// Start the application
-	if err := app.Start(); err != nil {
+	if err := s.app.Start(); err != nil {
 		return err
 	}
 	return nil
@@ -51,7 +73,7 @@ func (s *AppStarter) startApp() error {
 // stopApp waits for the application to shut down and cleans up resources.
 // NOTE: ShutDown() must be called before invoking this function.
 func (s *AppStarter) stopApp() {
-	app.WaitForShutdown()
+	s.app.WaitForShutdown()
 	log.Destroy()
 }
 
@@ -83,7 +105,7 @@ func (s *AppStarter) Run(fn ...func() error) {
 		signal.Stop(ch)
 		close(ch)
 		log.Infof(context.Background(), log.TagAppDef, "Received signal: %v", sig)
-		app.ShutDown()
+		s.app.ShutDown()
 	}()
 
 	// Wait until shutdown completes
@@ -103,7 +125,7 @@ func (s *AppStarter) RunAsync() (func(), error) {
 
 	// Return a shutdown function
 	return func() {
-		app.ShutDown()
+		s.app.ShutDown()
 		s.stopApp()
 	}, nil
 }

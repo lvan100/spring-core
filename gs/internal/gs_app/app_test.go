@@ -69,9 +69,9 @@ func TestApp(t *testing.T) {
 		t.Cleanup(Reset)
 
 		app := NewApp()
-		app.C.Root(app.C.Provide(func() (*http.Server, error) {
+		app.c.Provide(func() (*http.Server, error) {
 			return nil, errors.New("fail to create bean")
-		}))
+		}).Root()
 		err := app.Start()
 		assert.Error(t, err).Matches("fail to create bean")
 	})
@@ -85,7 +85,7 @@ func TestApp(t *testing.T) {
 		})
 
 		app := NewApp()
-		app.C.Provide(r).Export(gs.As[Runner]())
+		app.c.Provide(r).Export(gs.As[Runner]())
 
 		assert.Panic(t, func() {
 			_ = app.Start()
@@ -101,7 +101,7 @@ func TestApp(t *testing.T) {
 		})
 
 		app := NewApp()
-		app.C.Provide(r).Export(gs.As[Runner]())
+		app.c.Provide(r).Export(gs.As[Runner]())
 		err := app.Start()
 		assert.Error(t, err).Matches("runner return error")
 	})
@@ -116,13 +116,13 @@ func TestApp(t *testing.T) {
 		r1 := FuncRunner(func(ctx context.Context) error {
 			return nil
 		})
-		app.C.Provide(r1).Export(gs.As[Runner]()).Name("r1")
+		app.c.Provide(r1).Export(gs.As[Runner]()).Name("r1")
 
 		// error
 		r2 := FuncRunner(func(ctx context.Context) error {
 			return errors.New("runner error")
 		})
-		app.C.Provide(r2).Export(gs.As[Runner]()).Name("r2")
+		app.c.Provide(r2).Export(gs.As[Runner]()).Name("r2")
 
 		err := app.Start()
 		assert.Error(t, err).Matches("runner error")
@@ -161,7 +161,7 @@ func TestApp(t *testing.T) {
 		})
 
 		app := NewApp()
-		app.C.Provide(r).Export(gs.As[Job]())
+		app.c.Provide(r).Export(gs.As[Job]())
 		err := app.Start()
 		assert.That(t, err).Nil()
 		time.Sleep(50 * time.Millisecond)
@@ -177,7 +177,7 @@ func TestApp(t *testing.T) {
 		})
 
 		app := NewApp()
-		app.C.Provide(r).Export(gs.As[Job]())
+		app.c.Provide(r).Export(gs.As[Job]())
 		err := app.Start()
 		assert.That(t, err).Nil()
 		time.Sleep(50 * time.Millisecond)
@@ -196,7 +196,7 @@ func TestApp(t *testing.T) {
 		})
 
 		app := NewApp()
-		app.C.Provide(r).Export(gs.As[Job]())
+		app.c.Provide(r).Export(gs.As[Job]())
 
 		go func() {
 			time.Sleep(50 * time.Millisecond)
@@ -220,7 +220,7 @@ func TestApp(t *testing.T) {
 		r.MockListenAndServe().ReturnValue(errors.New("server return error"))
 
 		app := NewApp()
-		app.C.Provide(r).Export(gs.As[Server]())
+		app.c.Provide(r).Export(gs.As[Server]())
 		err := app.Start()
 		assert.Error(t, err).String("server intercepted")
 		time.Sleep(50 * time.Millisecond)
@@ -239,7 +239,7 @@ func TestApp(t *testing.T) {
 		})
 
 		app := NewApp()
-		app.C.Provide(r).Export(gs.As[Server]())
+		app.c.Provide(r).Export(gs.As[Server]())
 		err := app.Start()
 		assert.Error(t, err).String("server intercepted")
 		time.Sleep(50 * time.Millisecond)
@@ -255,20 +255,20 @@ func TestApp(t *testing.T) {
 			r := FuncRunner(func(ctx context.Context) error {
 				return nil
 			})
-			app.C.Provide(r).Export(gs.As[Runner]()).Name("r1")
+			app.c.Provide(r).Export(gs.As[Runner]()).Name("r1")
 		}
 		{
 			r := FuncRunner(func(ctx context.Context) error {
 				return nil
 			})
-			app.C.Provide(r).Export(gs.As[Runner]()).Name("r2")
+			app.c.Provide(r).Export(gs.As[Runner]()).Name("r2")
 		}
 		{
 			r := FuncJob(func(ctx context.Context) error {
 				<-ctx.Done()
 				return nil
 			})
-			app.C.Provide(r).Export(gs.As[Job]()).Name("j1")
+			app.c.Provide(r).Export(gs.As[Job]()).Name("j1")
 		}
 		j2Wait := make(chan struct{}, 1)
 		{
@@ -281,7 +281,7 @@ func TestApp(t *testing.T) {
 					}
 				}
 			})
-			app.C.Provide(r).Export(gs.As[Job]()).Name("j2")
+			app.c.Provide(r).Export(gs.As[Job]()).Name("j2")
 		}
 		{
 			m := gsmock.NewManager()
@@ -292,7 +292,7 @@ func TestApp(t *testing.T) {
 				return nil
 			})
 
-			app.C.Provide(r).Export(gs.As[Server]()).Name("s1")
+			app.c.Provide(r).Export(gs.As[Server]()).Name("s1")
 		}
 		{
 			m := gsmock.NewManager()
@@ -303,7 +303,7 @@ func TestApp(t *testing.T) {
 				return nil
 			})
 
-			app.C.Provide(r).Export(gs.As[Server]()).Name("s2")
+			app.c.Provide(r).Export(gs.As[Server]()).Name("s2")
 		}
 		go func() {
 			time.Sleep(50 * time.Millisecond)
@@ -338,7 +338,7 @@ func TestApp(t *testing.T) {
 			return nil
 		})
 
-		app.C.Provide(r).Export(gs.As[Server]())
+		app.c.Provide(r).Export(gs.As[Server]())
 		go func() {
 			time.Sleep(50 * time.Millisecond)
 			app.ShutDown()

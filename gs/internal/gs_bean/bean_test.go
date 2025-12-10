@@ -81,10 +81,6 @@ func TestBeanDefinition(t *testing.T) {
 
 		bean.Name("test-1")
 		assert.That(t, bean.GetName()).Equal("test-1")
-
-		assert.That(t, bean.BeanRuntime.Callable()).Nil()
-		assert.That(t, bean.BeanRuntime.Status()).Equal(StatusWired)
-		assert.That(t, bean.BeanRuntime.String()).Equal("test-1")
 	})
 
 	t.Run("depends on", func(t *testing.T) {

@@ -71,10 +71,12 @@ type Configuration struct {
 	Excludes []string // Methods to exclude
 }
 
-// BeanMetadata holds static (design-time) metadata about a bean,
-// such as lifecycle functions, dependencies, conditions, and configuration.
-type BeanMetadata struct {
+// BeanDefinition contains both metadata and runtime information of a bean.
+type BeanDefinition struct {
+	v             reflect.Value    // The value of the bean.
+	t             reflect.Type     // The type of the bean.
 	f             *gs_arg.Callable // Callable for constructor functions
+	name          string           // The name of the bean.
 	init          any              // Bean initialization function
 	destroy       any              // Bean destruction function
 	dependsOn     []gs.BeanID      // Explicit dependencies of the bean
@@ -84,10 +86,21 @@ type BeanMetadata struct {
 	mocked        bool             // Indicates if the bean is mocked
 	fileLine      string           // File and line where bean is defined
 	configuration *Configuration   // Configuration for sub/child beans
+	root          bool             // 是否为 root 类型的 bean
+}
+
+// Clone 克隆一个 BeanDefinition 对象
+func (d *BeanDefinition) Clone() *BeanDefinition {
+	r := *d
+	if d.f != nil || d.t.Kind() == reflect.Func {
+		return &r
+	}
+	r.v = reflect.New(d.t).Elem()
+	return &r
 }
 
 // Mocked returns true if the bean is mocked.
-func (d *BeanMetadata) Mocked() bool {
+func (d *BeanDefinition) Mocked() bool {
 	return d.mocked
 }
 
@@ -110,17 +123,17 @@ func validLifeCycleFunc(fnType reflect.Type, beanType reflect.Type) bool {
 }
 
 // GetInit returns the bean's initialization function.
-func (d *BeanMetadata) GetInit() any {
+func (d *BeanDefinition) GetInit() any {
 	return d.init
 }
 
 // GetDestroy returns the bean's destruction function.
-func (d *BeanMetadata) GetDestroy() any {
+func (d *BeanDefinition) GetDestroy() any {
 	return d.destroy
 }
 
 // GetDependsOn returns the list of dependencies for the bean.
-func (d *BeanMetadata) GetDependsOn() []gs.BeanID {
+func (d *BeanDefinition) GetDependsOn() []gs.BeanID {
 	return d.dependsOn
 }
 
@@ -131,12 +144,12 @@ func (d *BeanDefinition) DependsOn(selectors ...gs.BeanID) *BeanDefinition {
 }
 
 // Exports returns the interfaces exported by the bean.
-func (d *BeanMetadata) Exports() []reflect.Type {
+func (d *BeanDefinition) Exports() []reflect.Type {
 	return d.exports
 }
 
 // Conditions returns the list of conditions for the bean.
-func (d *BeanMetadata) Conditions() []gs.Condition {
+func (d *BeanDefinition) Conditions() []gs.Condition {
 	return d.conditions
 }
 
@@ -147,7 +160,7 @@ func (d *BeanDefinition) Condition(conditions ...gs.Condition) *BeanDefinition {
 }
 
 // GetConfiguration returns the configuration for the bean.
-func (d *BeanMetadata) GetConfiguration() *Configuration {
+func (d *BeanDefinition) GetConfiguration() *Configuration {
 	return d.configuration
 }
 
@@ -172,24 +185,17 @@ func (d *BeanDefinition) Caller(skip int) *BeanDefinition {
 }
 
 // FileLine returns the source file and line number of the bean.
-func (d *BeanMetadata) FileLine() string {
+func (d *BeanDefinition) FileLine() string {
 	return d.fileLine
 }
 
 // SetFileLine sets the source file and line number of the bean.
-func (d *BeanMetadata) SetFileLine(file string, line int) {
+func (d *BeanDefinition) SetFileLine(file string, line int) {
 	d.fileLine = fmt.Sprintf("%s:%d", file, line)
 }
 
-// BeanRuntime holds runtime information about the bean.
-type BeanRuntime struct {
-	v    reflect.Value // The value of the bean.
-	t    reflect.Type  // The type of the bean.
-	name string        // The name of the bean.
-}
-
 // BeanID returns the bean's identifier.
-func (d *BeanRuntime) BeanID() gs.BeanID {
+func (d *BeanDefinition) BeanID() gs.BeanID {
 	return gs.BeanID{
 		Name: d.GetName(),
 		Type: d.GetType(),
@@ -197,78 +203,49 @@ func (d *BeanRuntime) BeanID() gs.BeanID {
 }
 
 // GetName returns the bean's name.
-func (d *BeanRuntime) GetName() string {
+func (d *BeanDefinition) GetName() string {
 	return d.name
 }
 
 // GetType returns the bean's type.
-func (d *BeanRuntime) GetType() reflect.Type {
+func (d *BeanDefinition) GetType() reflect.Type {
 	return d.t
 }
 
 // GetValue returns the bean as reflect.Value.
-func (d *BeanRuntime) GetValue() reflect.Value {
+func (d *BeanDefinition) GetValue() reflect.Value {
 	return d.v
 }
 
 // Interface returns the underlying bean.
-func (d *BeanRuntime) Interface() any {
+func (d *BeanDefinition) Interface() any {
 	return d.v.Interface()
 }
 
-// Callable returns the bean's callable constructor.
-func (d *BeanRuntime) Callable() *gs_arg.Callable {
-	return nil
-}
-
-// Status returns the current status of the bean.
-func (d *BeanRuntime) Status() BeanStatus {
-	return StatusWired
-}
-
 // GetArgValue returns the bean’s value for argument injection.
-func (d *BeanRuntime) GetArgValue(ctx gs.ArgContext, t reflect.Type) (reflect.Value, error) {
+func (d *BeanDefinition) GetArgValue(ctx gs.ArgContext, t reflect.Type) (reflect.Value, error) {
 	return d.GetValue(), nil
-}
-
-// String returns a string representation of the bean.
-func (d *BeanRuntime) String() string {
-	return d.name
-}
-
-// BeanDefinition contains both metadata and runtime information of a bean.
-type BeanDefinition struct {
-	*BeanMetadata
-	*BeanRuntime
 }
 
 // makeBean creates a new BeanDefinition.
 func makeBean(t reflect.Type, v reflect.Value, f *gs_arg.Callable, name string) *BeanDefinition {
 	return &BeanDefinition{
-		BeanMetadata: &BeanMetadata{
-			f:      f,
-			status: StatusDefault,
-		},
-		BeanRuntime: &BeanRuntime{
-			t:    t,
-			v:    v,
-			name: name,
-		},
+		f:      f,
+		t:      t,
+		v:      v,
+		name:   name,
+		status: StatusDefault,
 	}
 }
 
 // SetMock replaces the bean's runtime instance with a mock object.
 func (d *BeanDefinition) SetMock(obj any) {
 	*d = BeanDefinition{
-		BeanMetadata: &BeanMetadata{
-			exports: d.exports,
-			mocked:  true,
-		},
-		BeanRuntime: &BeanRuntime{
-			t:    reflect.TypeOf(obj),
-			v:    reflect.ValueOf(obj),
-			name: d.name,
-		},
+		exports: d.exports,
+		mocked:  true,
+		t:       reflect.TypeOf(obj),
+		v:       reflect.ValueOf(obj),
+		name:    d.name,
 	}
 }
 
@@ -361,6 +338,17 @@ func (d *BeanDefinition) OnProfiles(profiles string) *BeanDefinition {
 		}
 		return false, nil
 	}))
+	return d
+}
+
+// IsRoot returns true if the bean is a root bean.
+func (d *BeanDefinition) IsRoot() bool {
+	return d.root
+}
+
+// Root marks the bean as a root bean.
+func (d *BeanDefinition) Root() *BeanDefinition {
+	d.root = true
 	return d
 }
 

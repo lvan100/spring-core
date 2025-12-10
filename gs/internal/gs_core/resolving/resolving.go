@@ -26,6 +26,7 @@ import (
 	"github.com/go-spring/spring-core/gs/internal/gs"
 	"github.com/go-spring/spring-core/gs/internal/gs_bean"
 	"github.com/go-spring/spring-core/gs/internal/gs_cond"
+	"github.com/go-spring/spring-core/gs/internal/gs_init"
 )
 
 // RefreshState represents the current state of the container.
@@ -45,30 +46,14 @@ type BeanMock struct {
 	Target gs.BeanID // The selector identifying the bean to replace
 }
 
-// BeanProvider defines the API for registering beans in the IoC container.
-type BeanProvider interface {
-	Provide(objOrCtor any, args ...gs.Arg) *gs_bean.BeanDefinition
-}
-
-// ModuleFunc defines the signature of a module function.
-type ModuleFunc func(r BeanProvider, p conf.Properties) error
-
-// Module represents a module that can register additional beans
-// when certain conditions are met.
-type Module struct {
-	f ModuleFunc
-	c gs.Condition
-}
-
 // Resolving is the core container responsible for holding bean definitions,
 // processing modules, applying mocks, scanning configuration beans, and
 // resolving beans against conditions.
 type Resolving struct {
-	state   RefreshState              // current refresh state
-	mocks   []BeanMock                // registered mocks to override beans
-	beans   []*gs_bean.BeanDefinition // all beans managed by the container
-	roots   []*gs_bean.BeanDefinition // root beans to wire at the end
-	modules []Module                  // registered modules
+	state RefreshState              // current refresh state
+	mocks []BeanMock                // registered mocks to override beans
+	beans []*gs_bean.BeanDefinition // all beans managed by the container
+	roots []*gs_bean.BeanDefinition // root beans to wire at the end
 }
 
 // New creates an empty Resolving instance.
@@ -113,30 +98,6 @@ func (c *Resolving) Provide(objOrCtor any, args ...gs.Arg) *gs_bean.BeanDefiniti
 	return b
 }
 
-// Module registers a conditional module that will be executed
-// to add beans before the container starts refreshing.
-func (c *Resolving) Module(conditions []gs_cond.ConditionOnProperty, fn ModuleFunc) {
-	if c.state != RefreshDefault {
-		panic("container is already refreshing or refreshed")
-	}
-	var arr []gs.Condition
-	for _, cond := range conditions {
-		arr = append(arr, cond)
-	}
-	c.modules = append(c.modules, Module{
-		f: fn,
-		c: gs_cond.And(arr...),
-	})
-}
-
-// Root marks a registered bean as a root bean.
-func (c *Resolving) Root(b *gs_bean.BeanDefinition) {
-	if c.state != RefreshDefault {
-		panic("container is already refreshing or refreshed")
-	}
-	c.roots = append(c.roots, b)
-}
-
 // Refresh performs the full lifecycle of container initialization.
 // The phases are as follows:
 //  1. Apply registered modules to register additional beans.
@@ -151,6 +112,7 @@ func (c *Resolving) Refresh(p conf.Properties) error {
 	}
 	c.state = RefreshPrepare
 
+	c.beans = append(gs_init.Beans(), c.beans...)
 	if err := c.applyModules(p); err != nil {
 		return err
 	}
@@ -189,15 +151,15 @@ func (c *Resolving) Refresh(p conf.Properties) error {
 // applyModules executes all registered modules that match their conditions.
 func (c *Resolving) applyModules(p conf.Properties) error {
 	ctx := &ConditionContext{p: p, c: c}
-	for _, m := range c.modules {
-		if m.c != nil {
-			if ok, err := m.c.Matches(ctx); err != nil {
+	for _, m := range gs_init.Modules() {
+		if m.Condition != nil {
+			if ok, err := m.Condition.Matches(ctx); err != nil {
 				return err
 			} else if !ok {
 				continue
 			}
 		}
-		if err := m.f(c, p); err != nil {
+		if err := m.ModuleFunc(c, p); err != nil {
 			return util.FormatError(err, "apply module error")
 		}
 	}
@@ -363,6 +325,9 @@ func (c *Resolving) resolveBeans(p conf.Properties) error {
 	for _, b := range c.beans {
 		if err := ctx.resolveBean(b); err != nil {
 			return util.FormatError(err, "resolve bean error")
+		}
+		if b.IsRoot() && b.Status() == gs_bean.StatusResolved {
+			c.roots = append(c.roots, b)
 		}
 	}
 	return nil

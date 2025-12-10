@@ -31,23 +31,11 @@ import (
 	"github.com/go-spring/spring-base/util"
 	"github.com/go-spring/spring-core/conf"
 	"github.com/go-spring/spring-core/gs/internal/gs"
-	"github.com/go-spring/spring-core/gs/internal/gs_arg"
 	"github.com/go-spring/spring-core/gs/internal/gs_bean"
 	"github.com/go-spring/spring-core/gs/internal/gs_dync"
 	"github.com/go-spring/spring-core/gs/internal/gs_util"
 	"github.com/spf13/cast"
 )
-
-// BeanRuntime defines an interface that provides runtime metadata.
-type BeanRuntime interface {
-	GetName() string            // The name of the bean
-	GetType() reflect.Type      // The reflect.Type of the bean
-	GetValue() reflect.Value    // The reflect.Value of the bean
-	Interface() any             // The underlying Go interface of the bean
-	Callable() *gs_arg.Callable // Optional constructor or factory metadata
-	Status() gs_bean.BeanStatus // Lifecycle status of the bean
-	String() string             // A readable string representation
-}
 
 // refreshState represents the state of a refresh operation.
 type refreshState int
@@ -61,10 +49,10 @@ const (
 // Injecting is the IoC component that handles dependency injection and
 // lifecycle management for beans once they have been resolved.
 type Injecting struct {
-	p           *gs_dync.Properties            // Dynamic properties provider
-	beansByName map[string][]BeanRuntime       // Beans indexed by name
-	beansByType map[reflect.Type][]BeanRuntime // Beans indexed by type
-	destroyers  []func()                       // Cleanup functions in reverse order
+	p           *gs_dync.Properties                        // Dynamic properties provider
+	beansByName map[string][]*gs_bean.BeanDefinition       // Beans indexed by name
+	beansByType map[reflect.Type][]*gs_bean.BeanDefinition // Beans indexed by type
+	destroyers  []func()                                   // Cleanup functions in reverse order
 }
 
 // New creates a new Injecting instance.
@@ -92,8 +80,8 @@ func (c *Injecting) Refresh(roots, beans []*gs_bean.BeanDefinition) (err error) 
 	forceAutowireIsNullable := cast.ToBool(c.p.Data().Get("spring.force-autowire-is-nullable"))
 
 	// Index beans by name and type for lookup
-	c.beansByName = make(map[string][]BeanRuntime)
-	c.beansByType = make(map[reflect.Type][]BeanRuntime)
+	c.beansByName = make(map[string][]*gs_bean.BeanDefinition)
+	c.beansByType = make(map[reflect.Type][]*gs_bean.BeanDefinition)
 	for _, b := range beans {
 		c.beansByName[b.GetName()] = append(c.beansByName[b.GetName()], b)
 		c.beansByType[b.GetType()] = append(c.beansByType[b.GetType()], b)
@@ -154,17 +142,6 @@ func (c *Injecting) Refresh(roots, beans []*gs_bean.BeanDefinition) (err error) 
 		c.beansByType = nil
 		return nil
 	}
-
-	// In testing mode, retain bean indexes to allow further Wire() calls.
-	c.beansByName = make(map[string][]BeanRuntime)
-	c.beansByType = make(map[reflect.Type][]BeanRuntime)
-	for _, b := range beans {
-		c.beansByName[b.GetName()] = append(c.beansByName[b.GetName()], b.BeanRuntime)
-		c.beansByType[b.GetType()] = append(c.beansByType[b.GetType()], b.BeanRuntime)
-		for _, t := range b.Exports() {
-			c.beansByType[t] = append(c.beansByType[t], b.BeanRuntime)
-		}
-	}
 	return nil
 }
 
@@ -204,21 +181,21 @@ func (c *Injecting) Close() {
 // Injector is the component that executes core autowiring and
 // bean lifecycle management (constructor, field, and method injection).
 type Injector struct {
-	state                   refreshState                   // Current wiring state
-	p                       *gs_dync.Properties            // Property resolver
-	beansByName             map[string][]BeanRuntime       // Beans indexed by name
-	beansByType             map[reflect.Type][]BeanRuntime // Beans indexed by type
-	forceAutowireIsNullable bool                           // Treat missing references as nullable
+	state                   refreshState                               // Current wiring state
+	p                       *gs_dync.Properties                        // Property resolver
+	beansByName             map[string][]*gs_bean.BeanDefinition       // Beans indexed by name
+	beansByType             map[reflect.Type][]*gs_bean.BeanDefinition // Beans indexed by type
+	forceAutowireIsNullable bool                                       // Treat missing references as nullable
 }
 
 // findBeans retrieves all beans that match a given selector.
-func (c *Injector) findBeans(beanID gs.BeanID) []BeanRuntime {
-	var beans []BeanRuntime
+func (c *Injector) findBeans(beanID gs.BeanID) []*gs_bean.BeanDefinition {
+	var beans []*gs_bean.BeanDefinition
 	if beanID.Type != nil {
 		beans = c.beansByType[beanID.Type]
 	}
 	if beanID.Name != "" {
-		var ret []BeanRuntime
+		var ret []*gs_bean.BeanDefinition
 		for _, b := range beans {
 			if beanID.Name == b.GetName() {
 				ret = append(ret, b)
@@ -274,13 +251,13 @@ func toWireString(tags []WireTag) string {
 // getBean locates a single bean that matches the given type and WireTag.
 // If the container is still in the Refreshing state, the matched bean will
 // be wired before it is returned.
-func (c *Injector) getBean(t reflect.Type, tag WireTag, stack *Stack) (BeanRuntime, error) {
+func (c *Injector) getBean(t reflect.Type, tag WireTag, stack *Stack) (*gs_bean.BeanDefinition, error) {
 	// Ensure the target type is valid for injection.
 	if !util.IsBeanInjectionTarget(t) {
 		return nil, util.FormatError(nil, "%s is not a valid receiver type", t.String())
 	}
 
-	var foundBeans []BeanRuntime
+	var foundBeans []*gs_bean.BeanDefinition
 	for _, b := range c.beansByType[t] {
 		if tag.beanName == "" || tag.beanName == b.GetName() {
 			foundBeans = append(foundBeans, b)
@@ -305,7 +282,7 @@ func (c *Injector) getBean(t reflect.Type, tag WireTag, stack *Stack) (BeanRunti
 
 	b := foundBeans[0]
 	if c.state == Refreshing {
-		if err := c.wireBean(b.(*gs_bean.BeanDefinition), stack); err != nil {
+		if err := c.wireBean(b, stack); err != nil {
 			return nil, err
 		}
 	}
@@ -314,7 +291,7 @@ func (c *Injector) getBean(t reflect.Type, tag WireTag, stack *Stack) (BeanRunti
 
 // getBeans retrieves a slice or map of beans that match the required element type and optional WireTags.
 // It supports filtering and ordering via tags, including the "*" wildcard to include unordered beans.
-func (c *Injector) getBeans(t reflect.Type, tags []WireTag, nullable bool, stack *Stack) ([]BeanRuntime, error) {
+func (c *Injector) getBeans(t reflect.Type, tags []WireTag, nullable bool, stack *Stack) ([]*gs_bean.BeanDefinition, error) {
 
 	et := t.Elem()
 	if !util.IsBeanInjectionTarget(et) {
@@ -389,7 +366,7 @@ func (c *Injector) getBeans(t reflect.Type, tags []WireTag, nullable bool, stack
 
 		// Assemble beans in the correct order: beforeAny -> anyBeans -> afterAny
 		n := len(beforeAny) + len(anyBeans) + len(afterAny)
-		arr := make([]BeanRuntime, 0, n)
+		arr := make([]*gs_bean.BeanDefinition, 0, n)
 		for _, i := range beforeAny {
 			arr = append(arr, beans[i])
 		}
@@ -414,7 +391,7 @@ func (c *Injector) getBeans(t reflect.Type, tags []WireTag, nullable bool, stack
 	// If the container is in the refreshing state, wire the beans before returning them
 	if c.state == Refreshing {
 		for _, b := range beans {
-			if err := c.wireBean(b.(*gs_bean.BeanDefinition), stack); err != nil {
+			if err := c.wireBean(b, stack); err != nil {
 				return nil, err
 			}
 		}
@@ -545,7 +522,7 @@ func (c *Injector) wireBean(b *gs_bean.BeanDefinition, stack *Stack) error {
 	for _, s := range b.GetDependsOn() {
 		beans := c.findBeans(s)
 		for _, d := range beans {
-			err := c.wireBean(d.(*gs_bean.BeanDefinition), stack)
+			err := c.wireBean(d, stack)
 			if err != nil {
 				return err
 			}
@@ -585,7 +562,7 @@ func (c *Injector) wireBean(b *gs_bean.BeanDefinition, stack *Stack) error {
 }
 
 // getBeanValue invokes the constructor (if present) of a bean and handles return values and errors.
-func (c *Injector) getBeanValue(b BeanRuntime, stack *Stack) (reflect.Value, error) {
+func (c *Injector) getBeanValue(b *gs_bean.BeanDefinition, stack *Stack) (reflect.Value, error) {
 
 	// If there is no constructor, return the pre-existing value
 	if b.Callable() == nil {

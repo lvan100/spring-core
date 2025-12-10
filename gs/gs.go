@@ -30,9 +30,8 @@ import (
 	"github.com/go-spring/spring-core/gs/internal/gs_bean"
 	"github.com/go-spring/spring-core/gs/internal/gs_cond"
 	"github.com/go-spring/spring-core/gs/internal/gs_conf"
-	"github.com/go-spring/spring-core/gs/internal/gs_core"
-	"github.com/go-spring/spring-core/gs/internal/gs_core/resolving"
 	"github.com/go-spring/spring-core/gs/internal/gs_dync"
+	"github.com/go-spring/spring-core/gs/internal/gs_init"
 )
 
 const (
@@ -183,11 +182,11 @@ type (
 	Job          = gs_app.Job
 	Server       = gs_app.Server
 	ReadySignal  = gs_app.ReadySignal
-	BeanProvider = resolving.BeanProvider
+	BeanProvider = gs_init.BeanProvider
 )
 
-// app is the global application instance.
-var app = gs_app.NewApp()
+// started indicates whether the application has started.
+var started bool
 
 // FuncRunner wraps a function into a Runner.
 func FuncRunner(fn func(ctx context.Context) error) Runner {
@@ -199,11 +198,6 @@ func FuncJob(fn func(ctx context.Context) error) Job {
 	return gs_app.FuncJob(fn)
 }
 
-// Config returns the current application configuration.
-func Config() *gs_conf.AppConfig {
-	return app.P
-}
-
 // Property sets a system property.
 func Property(key string, val string) {
 	_, file, _, _ := runtime.Caller(1)
@@ -213,54 +207,37 @@ func Property(key string, val string) {
 	}
 }
 
-// RefreshProperties reloads application properties from all sources.
-func RefreshProperties() error {
-	p, err := app.P.Refresh()
-	if err != nil {
-		return err
-	}
-	return app.C.RefreshProperties(p)
-}
-
-// Root registers a root bean in the application context.
-func Root(b *gs_bean.BeanDefinition) {
-	if app.C.State != gs_core.RefreshDefault {
-		panic("container is already refreshing or refreshed")
-	}
-	app.C.Root(b)
-}
-
-// Provide registers a bean definition.
+// Provide registers a bean definition. 全局函数。
 // It accepts either an existing instance or a constructor function.
 // The optional args are used to bind parameters for the constructor or to
 // provide explicit injection values.
 func Provide(objOrCtor any, args ...Arg) *gs_bean.BeanDefinition {
-	if app.C.State != gs_core.RefreshDefault {
-		panic("container is already refreshing or refreshed")
+	if started {
+		panic("gs.Provide can only be called before the application is started")
 	}
-	return app.C.Provide(objOrCtor, args...).Caller(1)
+	return gs_init.Provide(objOrCtor, args...).Caller(1)
 }
 
 // ModuleFunc defines the signature of a module function.
-type ModuleFunc = resolving.ModuleFunc
+type ModuleFunc = gs_init.ModuleFunc
 
 // Module registers a configuration module that is conditionally activated
-// based on property values.
+// based on property values. 全局函数。
 func Module(conditions []ConditionOnProperty, fn ModuleFunc) {
-	if app.C.State != gs_core.RefreshDefault {
-		panic("container is already refreshing or refreshed")
+	if started {
+		panic("gs.Module can only be called before the application is started")
 	}
-	app.C.Module(conditions, fn)
+	gs_init.AddModule(conditions, fn)
 }
 
-// Group registers a set of beans based on a configuration property map.
+// Group registers a set of beans based on a configuration property map. 全局函数。
 // Each map entry spawns a bean constructed via fn and optionally destroyed via d.
 func Group[T any, R any](tag string, fn func(c T) (R, error), d func(R) error) {
-	if app.C.State != gs_core.RefreshDefault {
-		panic("container is already refreshing or refreshed")
+	if started {
+		panic("gs.Group can only be called before the application is started")
 	}
 	key := strings.TrimSuffix(strings.TrimPrefix(tag, "${"), "}")
-	app.C.Module([]ConditionOnProperty{
+	gs_init.AddModule([]ConditionOnProperty{
 		OnProperty(key),
 	}, func(r BeanProvider, p conf.Properties) error {
 		var m map[string]T
@@ -277,29 +254,25 @@ func Group[T any, R any](tag string, fn func(c T) (R, error), d func(R) error) {
 	})
 }
 
-// Web enables or disables the built-in HTTP server.
-func Web(enable bool) *AppStarter {
-	EnableSimpleHttpServer(enable)
-	return &AppStarter{}
-}
-
 // Run starts the application with a custom run function.
 func Run(fn ...func() error) {
+	started = true
 	new(AppStarter).Run(fn...)
 }
 
 // RunAsync starts the application asynchronously and
 // returns a stop function to gracefully shut it down.
 func RunAsync() (func(), error) {
+	started = true
 	return new(AppStarter).RunAsync()
 }
 
-// Exiting returns true if the application is shutting down.
-func Exiting() bool {
-	return app.Exiting()
-}
-
-// ShutDown gracefully stops the application.
-func ShutDown() {
-	app.ShutDown()
-}
+//// Exiting returns true if the application is shutting down.
+//func Exiting() bool {
+//	return app.Exiting()
+//}
+//
+//// ShutDown gracefully stops the application.
+//func ShutDown() {
+//	app.ShutDown()
+//}

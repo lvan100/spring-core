@@ -86,11 +86,19 @@ type Server interface {
 	Shutdown(ctx context.Context) error
 }
 
+// AppConfigurer ...
+type AppConfigurer interface {
+	Config() *gs_conf.AppConfig
+	RefreshProperties() error
+}
+
 // App represents the core application, managing its lifecycle,
 // configuration, and dependency injection.
 type App struct {
-	C *gs_core.Container // IoC container
-	P *gs_conf.AppConfig // Application configuration
+	c *gs_core.Container // IoC container
+	p *gs_conf.AppConfig // Application configuration
+
+	configure func(cfg AppConfigurer)
 
 	exiting atomic.Bool        // Indicates whether the application is shutting down
 	ctx     context.Context    // Root context for managing cancellation
@@ -109,11 +117,30 @@ type App struct {
 func NewApp() *App {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &App{
-		C:      gs_core.New(),
-		P:      gs_conf.NewAppConfig(),
+		c:      gs_core.New(),
+		p:      gs_conf.NewAppConfig(),
 		ctx:    ctx,
 		cancel: cancel,
 	}
+}
+
+// Configure sets the application configuration provider.
+func (app *App) Configure(configure func(cfg AppConfigurer)) {
+	app.configure = configure
+}
+
+// Config returns the current application configuration.
+func (app *App) Config() *gs_conf.AppConfig {
+	return app.p
+}
+
+// RefreshProperties reloads application properties from all sources.
+func (app *App) RefreshProperties() error {
+	p, err := app.p.Refresh()
+	if err != nil {
+		return err
+	}
+	return app.c.RefreshProperties(p)
 }
 
 // Start initializes and launches the application. It performs the following steps:
@@ -125,19 +152,24 @@ func NewApp() *App {
 // 6. Starts all Servers (if enabled) and waits for readiness.
 func (app *App) Start() error {
 	// Register App as a root bean in the container
-	app.C.Root(app.C.Provide(app))
+	app.c.Provide(app).Root()
+
+	// Configure the application
+	if app.configure != nil {
+		app.configure(app)
+	}
 
 	// Load layered application properties
 	var p conf.Properties
 	{
 		var err error
-		if p, err = app.P.Refresh(); err != nil {
+		if p, err = app.p.Refresh(); err != nil {
 			return err
 		}
 	}
 
 	// Refresh the container to wire all beans
-	if err := app.C.Refresh(p); err != nil {
+	if err := app.c.Refresh(p); err != nil {
 		return err
 	}
 
@@ -223,7 +255,7 @@ func (app *App) WaitForShutdown() {
 		})
 	}
 	app.wg.Wait()
-	app.C.Close()
+	app.c.Close()
 	log.Infof(app.ctx, log.TagAppDef, "shutdown complete")
 }
 

@@ -32,7 +32,7 @@ func TestContainer(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		c := New()
-		c.Root(c.Provide(&http.Server{}))
+		c.Provide(&http.Server{}).Root()
 		err := c.Refresh(conf.New())
 		assert.That(t, err).Nil()
 		c.Close()
@@ -40,26 +40,26 @@ func TestContainer(t *testing.T) {
 
 	t.Run("resolve error", func(t *testing.T) {
 		c := New()
-		c.Root(c.Provide(&http.Server{}).Condition(
+		c.Provide(&http.Server{}).Condition(
 			gs_cond.OnFunc(func(ctx gs.ConditionContext) (bool, error) {
 				return false, errors.New("condition error")
 			}),
-		))
+		).Root()
 		err := c.Refresh(conf.New())
 		assert.Error(t, err).Matches("condition error")
 	})
 
 	t.Run("inject error", func(t *testing.T) {
 		c := New()
-		c.Root(c.Provide(func(addr string) *http.Server { return nil }))
+		c.Provide(func(addr string) *http.Server { return nil }).Root()
 		err := c.Refresh(conf.New())
 		assert.Error(t, err).Matches("property \"\" not exist")
 	})
 
 	t.Run("duplicate object registration", func(t *testing.T) {
 		c := New()
-		c.Root(c.Provide(&http.Server{}))
-		c.Root(c.Provide(&http.Server{}))
+		c.Provide(&http.Server{}).Root()
+		c.Provide(&http.Server{}).Root()
 		err := c.Refresh(conf.New())
 		assert.Error(t, err).Matches("found duplicate beans")
 	})
@@ -67,9 +67,9 @@ func TestContainer(t *testing.T) {
 	t.Run("provide with dependency", func(t *testing.T) {
 		c := New()
 
-		c.Root(c.Provide(func(addr string) *http.Server {
+		c.Provide(func(addr string) *http.Server {
 			return &http.Server{Addr: addr}
-		}, gs_arg.Tag("${server.address:=:9090}")))
+		}, gs_arg.Tag("${server.address:=:9090}")).Root()
 
 		err := c.Refresh(conf.Map(map[string]any{
 			"server.address": ":8080",
@@ -80,9 +80,9 @@ func TestContainer(t *testing.T) {
 	t.Run("provide with missing dependency", func(t *testing.T) {
 		c := New()
 
-		c.Root(c.Provide(func(addr string) *http.Server {
+		c.Provide(func(addr string) *http.Server {
 			return &http.Server{Addr: addr}
-		}, gs_arg.Tag("${server.address}")))
+		}, gs_arg.Tag("${server.address}")).Root()
 
 		err := c.Refresh(conf.New())
 		assert.Error(t, err).Matches("property \"server.address\" not exist")

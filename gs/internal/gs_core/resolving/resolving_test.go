@@ -30,6 +30,7 @@ import (
 	"github.com/go-spring/spring-core/gs/internal/gs_arg"
 	"github.com/go-spring/spring-core/gs/internal/gs_bean"
 	"github.com/go-spring/spring-core/gs/internal/gs_cond"
+	"github.com/go-spring/spring-core/gs/internal/gs_init"
 )
 
 type Logger interface {
@@ -153,11 +154,12 @@ func TestResolving(t *testing.T) {
 	})
 
 	t.Run("module error", func(t *testing.T) {
-		r := New()
-		r.Module(nil, func(r BeanProvider, p conf.Properties) error {
+		defer func() { gs_init.Clear() }()
+		gs_init.AddModule(nil, func(r gs_init.BeanProvider, p conf.Properties) error {
 			return errors.New("module error")
 		})
 
+		r := New()
 		err := r.Refresh(conf.New())
 		assert.That(t, err).NotNil()
 		assert.Error(t, err).Matches("module error")
@@ -243,21 +245,23 @@ func TestResolving(t *testing.T) {
 	})
 
 	t.Run("success", func(t *testing.T) {
+		defer func() { gs_init.Clear() }()
+		gs_init.AddModule(nil, func(r gs_init.BeanProvider, p conf.Properties) error {
+			keys, err := p.SubKeys("logger")
+			if err != nil {
+				return err
+			}
+			for _, name := range keys {
+				arg := gs_arg.Tag(fmt.Sprintf("logger.%s", name))
+				r.Provide(NewZeroLogger, arg).
+					Export(gs.As[Logger](), gs.As[CtxLogger]()).
+					Name(name)
+			}
+			return nil
+		})
+
 		r := New()
 		{
-			r.Module(nil, func(r BeanProvider, p conf.Properties) error {
-				keys, err := p.SubKeys("logger")
-				if err != nil {
-					return err
-				}
-				for _, name := range keys {
-					arg := gs_arg.Tag(fmt.Sprintf("logger.%s", name))
-					r.Provide(NewZeroLogger, arg).
-						Export(gs.As[Logger](), gs.As[CtxLogger]()).
-						Name(name)
-				}
-				return nil
-			})
 			r.Provide(NewLogger, gs_arg.Value("c")).Name("c")
 			r.AddMock(BeanMock{
 				Object: NewZeroLogger("a@mocked"),

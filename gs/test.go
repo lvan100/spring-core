@@ -43,7 +43,7 @@ func MockFor[T any](name ...string) BeanMock[T] {
 // replacing the original bean defined by the selector.
 // This allows tests to use mocked dependencies.
 func (m BeanMock[T]) With(obj T) {
-	app.C.AddMock(resolving.BeanMock{
+	app.c.AddMock(resolving.BeanMock{
 		Object: obj,
 		Target: m.target,
 	})
@@ -58,7 +58,7 @@ var testers []any
 // which will be automatically added to the Go test framework.
 func AddTester(t any) {
 	testers = append(testers, t)
-	app.C.Root(app.C.Provide(t))
+	app.c.Provide(t).Root()
 }
 
 // TestMain is the custom entry point for the Go test framework.
