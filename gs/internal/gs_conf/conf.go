@@ -90,8 +90,6 @@ func (c *NamedPropertyCopier) CopyTo(out *conf.MutableProperties) error {
 type AppConfig struct {
 	Properties  *conf.MutableProperties // Properties ...
 	LocalFile   *PropertySources        // Configuration sources from local files.
-	RemoteFile  *PropertySources        // Configuration sources from remote files.
-	RemoteProp  conf.Properties         // Properties fetched from a remote server.
 	Environment *Environment            // Environment variables as configuration source.
 	CommandArgs *CommandArgs            // Command-line arguments as configuration source.
 }
@@ -100,8 +98,7 @@ type AppConfig struct {
 func NewAppConfig() *AppConfig {
 	return &AppConfig{
 		Properties:  conf.New(),
-		LocalFile:   NewPropertySources(ConfigTypeLocal, "app"),
-		RemoteFile:  NewPropertySources(ConfigTypeRemote, "app"),
+		LocalFile:   NewPropertySources(),
 		Environment: NewEnvironment(),
 		CommandArgs: NewCommandArgs(),
 	}
@@ -146,16 +143,9 @@ func (c *AppConfig) Refresh() (conf.Properties, error) {
 		return nil, util.WrapError(err, "refresh error in source local")
 	}
 
-	remoteFiles, err := c.RemoteFile.loadFiles(p)
-	if err != nil {
-		return nil, util.WrapError(err, "refresh error in source remote")
-	}
-
 	var sources []*NamedPropertyCopier
 	sources = append(sources, NewNamedPropertyCopier("sys", c.Properties))
 	sources = append(sources, localFiles...)
-	sources = append(sources, remoteFiles...)
-	sources = append(sources, NewNamedPropertyCopier("remote", c.RemoteProp))
 	sources = append(sources, NewNamedPropertyCopier("env", c.Environment))
 	sources = append(sources, NewNamedPropertyCopier("cmd", c.CommandArgs))
 	return merge(sources...)
@@ -163,31 +153,18 @@ func (c *AppConfig) Refresh() (conf.Properties, error) {
 
 /****************************** PropertySources ******************************/
 
-// ConfigType defines the type of configuration: local or remote.
-type ConfigType string
-
-const (
-	ConfigTypeLocal  ConfigType = "local"
-	ConfigTypeRemote ConfigType = "remote"
-)
-
 // PropertySources represents a collection of configuration files
 // associated with a particular configuration type and logical name.
 // It supports both default directories and additional user-supplied
 // directories or files.
 type PropertySources struct {
-	configType ConfigType // Type of the configuration (local or remote).
-	configName string     // Base name of the configuration files.
-	extraDirs  []string   // Extra directories to search for configuration files.
-	extraFiles []string   // Extra individual files to include.
+	extraDirs  []string // Extra directories to search for configuration files.
+	extraFiles []string // Extra individual files to include.
 }
 
 // NewPropertySources creates a new instance of PropertySources.
-func NewPropertySources(configType ConfigType, configName string) *PropertySources {
-	return &PropertySources{
-		configType: configType,
-		configName: configName,
-	}
+func NewPropertySources() *PropertySources {
+	return &PropertySources{}
 }
 
 // Reset clears all previously added extra directories and files.
@@ -234,19 +211,6 @@ func (p *PropertySources) AddFile(files ...string) {
 	p.extraFiles = append(p.extraFiles, files...)
 }
 
-// getDefaultDir determines the default configuration directory
-// according to the configuration type and current resolved properties.
-func (p *PropertySources) getDefaultDir(resolver conf.Properties) (string, error) {
-	switch p.configType {
-	case ConfigTypeLocal:
-		return resolver.Resolve("${spring.app.config-local.dir:=./conf}")
-	case ConfigTypeRemote:
-		return resolver.Resolve("${spring.app.config-remote.dir:=./conf/remote}")
-	default:
-		return "", util.FormatError(nil, "unknown config type: %s", p.configType)
-	}
-}
-
 // getFiles generates the list of configuration file paths to try,
 // including both the base config name and profile-specific variants.
 // For example, with profile "dev", it will try "app-dev.yaml" etc.
@@ -255,7 +219,7 @@ func (p *PropertySources) getFiles(dir string, resolver conf.Properties) ([]stri
 
 	var files []string
 	for _, ext := range extensions {
-		files = append(files, filepath.Join(dir, p.configName+ext))
+		files = append(files, filepath.Join(dir, "app"+ext))
 	}
 
 	activeProfiles, err := resolver.Resolve("${spring.profiles.active:=}")
@@ -267,7 +231,7 @@ func (p *PropertySources) getFiles(dir string, resolver conf.Properties) ([]stri
 		for s := range strings.SplitSeq(activeProfiles, ",") {
 			if s = strings.TrimSpace(s); s != "" {
 				for _, ext := range extensions {
-					files = append(files, filepath.Join(dir, p.configName+"-"+s+ext))
+					files = append(files, filepath.Join(dir, "app-"+s+ext))
 				}
 			}
 		}
@@ -279,7 +243,7 @@ func (p *PropertySources) getFiles(dir string, resolver conf.Properties) ([]stri
 // successfully loaded ones as NamedPropertyCopier. Non-existent files
 // are skipped silently, while other loading errors abort the process.
 func (p *PropertySources) loadFiles(resolver conf.Properties) ([]*NamedPropertyCopier, error) {
-	defaultDir, err := p.getDefaultDir(resolver)
+	defaultDir, err := resolver.Resolve("${spring.app.config.dir:=./conf}")
 	if err != nil {
 		return nil, err
 	}

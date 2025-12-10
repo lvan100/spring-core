@@ -22,7 +22,7 @@ func (app *App) initLog() error {
 	var c struct {
 		// LocalDir is the directory that contains configuration files.
 		// Defaults to "./conf" if not provided.
-		LocalDir string `value:"${spring.app.config-local.dir:=./conf}"`
+		LocalDir string `value:"${spring.app.config.dir:=./conf}"`
 
 		// Profiles specifies the active application profile(s),
 		// such as "dev", "prod", etc.

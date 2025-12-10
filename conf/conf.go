@@ -119,35 +119,24 @@ Validation:
 package conf
 
 import (
-	"os"
-	"path/filepath"
 	"reflect"
 	"runtime"
 	"strings"
 	"time"
 
-	"github.com/go-spring/spring-base/barky"
 	"github.com/go-spring/spring-base/util"
-	"github.com/go-spring/spring-core/conf/reader/json"
-	"github.com/go-spring/spring-core/conf/reader/prop"
-	"github.com/go-spring/spring-core/conf/reader/toml"
-	"github.com/go-spring/spring-core/conf/reader/yaml"
+	"github.com/go-spring/spring-core/conf/provider"
+	"github.com/go-spring/spring-core/conf/reader"
+	"github.com/lvan100/golib/flatten"
 	"github.com/spf13/cast"
 )
 
 var (
-	readers    = map[string]Reader{}
 	splitters  = map[string]Splitter{}
 	converters = map[reflect.Type]any{}
 )
 
 func init() {
-
-	// built-in readers
-	RegisterReader(json.Read, ".json")
-	RegisterReader(prop.Read, ".properties")
-	RegisterReader(yaml.Read, ".yaml", ".yml")
-	RegisterReader(toml.Read, ".toml", ".tml")
 
 	// time.Time
 	RegisterConverter(func(s string) (time.Time, error) {
@@ -168,14 +157,14 @@ func init() {
 	})
 }
 
-// Reader parses raw bytes into a nested map[string]any.
-type Reader func(b []byte) (map[string]any, error)
-
 // RegisterReader registers its Reader for some kind of file extension.
-func RegisterReader(r Reader, ext ...string) {
-	for _, s := range ext {
-		readers[s] = r
-	}
+func RegisterReader(r reader.Reader, ext ...string) {
+	reader.RegisterReader(r, ext...)
+}
+
+// RegisterProvider registers a Provider for a specific configuration source.
+func RegisterProvider(name string, p provider.Provider) {
+	provider.RegisterProvider(name, p)
 }
 
 // Splitter splits a string into a slice of strings using custom logic.
@@ -233,55 +222,34 @@ var _ Properties = (*MutableProperties)(nil)
 // but it costs more CPU time when getting properties because it reads property node
 // by node. So `conf` uses a tree to strictly verify and a flat map to store.
 type MutableProperties struct {
-	*barky.Storage
+	*flatten.Storage
 }
 
 // New creates a new empty MutableProperties instance.
 func New() *MutableProperties {
 	return &MutableProperties{
-		Storage: barky.NewStorage(),
+		Storage: flatten.NewStorage(),
 	}
 }
 
 // Load creates a MutableProperties instance from a configuration file.
 // Returns an error if the file type is not supported or parsing fails.
-func Load(file string) (*MutableProperties, error) {
-	b, err := os.ReadFile(file)
+func Load(source string) (*MutableProperties, error) {
+	s, err := provider.Load(source)
 	if err != nil {
-		return nil, util.FormatError(err, "read file %s error", file)
+		return nil, err
 	}
-	ext := filepath.Ext(file)
-	r, ok := readers[ext]
-	if !ok {
-		err = util.FormatError(nil, "unsupported file type %s", ext)
-		return nil, util.FormatError(err, "read file %s error", file)
-	}
-	m, err := r(b)
-	if err != nil {
-		return nil, util.FormatError(err, "read file %s error", file)
-	}
-	p := New()
-	_ = p.merge(barky.FlattenMap(m), file)
-	return p, nil
+	return &MutableProperties{s}, nil
 }
 
 // Map creates a MutableProperties instance directly from a map.
 func Map(data map[string]any) *MutableProperties {
 	p := New()
 	_, file, _, _ := runtime.Caller(1)
-	_ = p.merge(barky.FlattenMap(data), file)
-	return p
-}
-
-// merge flattens the map and sets all keys and values.
-func (p *MutableProperties) merge(m map[string]string, file string) error {
-	fileID := p.AddFile(file)
-	for key, val := range m {
-		if err := p.Set(key, val, fileID); err != nil {
-			return err
-		}
+	if err := p.MergeMap(data, file); err != nil {
+		return nil // 这里理论上不会产生错误
 	}
-	return nil
+	return p
 }
 
 // Resolve resolves placeholders in a string, replacing references like
@@ -338,18 +306,5 @@ func (p *MutableProperties) Bind(i any, tag ...string) error {
 // CopyTo copies all properties into another MutableProperties instance,
 // overriding values if keys already exist.
 func (p *MutableProperties) CopyTo(out *MutableProperties) error {
-	rawFile := p.RawFile()
-	newfile := make(map[string]int8)
-	oldFile := make([]string, len(rawFile))
-	for k, v := range rawFile {
-		oldFile[v] = k
-		newfile[k] = out.AddFile(k)
-	}
-	for key, v := range p.RawData() {
-		fileID := newfile[oldFile[v.File]]
-		if err := out.Set(key, v.Value, fileID); err != nil {
-			return err
-		}
-	}
-	return nil
+	return out.Merge(p.Storage)
 }
