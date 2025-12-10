@@ -267,14 +267,6 @@ func TestBeanDefinition(t *testing.T) {
 		assert.That(t, bean.GetConfiguration()).NotNil()
 		assert.That(t, bean.GetConfiguration().Includes).Equal([]string{"New.*"})
 	})
-
-	t.Run("mock success", func(t *testing.T) {
-		v := reflect.ValueOf(&bytes.Buffer{})
-		bean := makeBean(v.Type(), v, nil, "test")
-		bean.Export(gs.As[io.Writer]())
-		bean.SetMock(bytes.NewBufferString(""))
-		assert.That(t, bean.Mocked()).True()
-	})
 }
 
 func TestNewBean(t *testing.T) {

@@ -25,7 +25,11 @@ import (
 	"github.com/go-spring/log"
 	"github.com/go-spring/spring-base/util"
 	"github.com/go-spring/spring-core/gs/internal/gs_app"
+	"github.com/go-spring/spring-core/gs/internal/gs_bean"
 )
+
+// started indicates whether the application has started.
+var started bool
 
 // AppStarter is a wrapper to manage the lifecycle of a Spring application.
 // It handles initialization, running, graceful shutdown, and logging.
@@ -35,6 +39,7 @@ type AppStarter struct {
 
 // NewApp creates a new AppStarter instance.
 func NewApp() *AppStarter {
+	started = true
 	return &AppStarter{
 		app: gs_app.NewApp(),
 	}
@@ -50,6 +55,11 @@ func (s *AppStarter) Web(enable bool) *AppStarter {
 func (s *AppStarter) Configure(f func(cfg gs_app.AppConfigurer)) *AppStarter {
 	s.app.Configure(f)
 	return s
+}
+
+// Provide registers a bean definition.
+func (s *AppStarter) Provide(objOrCtor any, args ...Arg) *gs_bean.BeanDefinition {
+	return s.app.Provide(objOrCtor, args...).Caller(1)
 }
 
 // startApp initializes logging, and starts the main application.

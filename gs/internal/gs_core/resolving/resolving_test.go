@@ -17,7 +17,6 @@
 package resolving
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -92,21 +91,6 @@ func TestResolving(t *testing.T) {
 		}, "container is already refreshing or refreshed")
 	})
 
-	t.Run("duplicate mock bean", func(t *testing.T) {
-		r := New()
-		r.Provide(&TestBean{Value: 1}).Configuration()
-		r.AddMock(BeanMock{
-			Object: &TestBean{Value: 9},
-			Target: gs.BeanIDFor[*TestBean](),
-		})
-		r.AddMock(BeanMock{
-			Object: &TestBean{Value: 9},
-			Target: gs.BeanIDFor[*TestBean](),
-		})
-		err := r.Refresh(conf.New())
-		assert.Error(t, err).Matches("found duplicate mock bean for 'TestBean'")
-	})
-
 	t.Run("invalid include pattern", func(t *testing.T) {
 		r := New()
 		r.Provide(&TestBean{Value: 1}).Configuration(
@@ -127,30 +111,6 @@ func TestResolving(t *testing.T) {
 		)
 		err := r.Refresh(conf.New())
 		assert.Error(t, err).Matches("error parsing regexp: missing argument to repetition operator: `*`")
-	})
-
-	t.Run("mock error with incompatible interface", func(t *testing.T) {
-		r := New()
-		r.Provide(NewZeroLogger, gs_arg.Value("a")).
-			Export(gs.As[Logger](), gs.As[CtxLogger]())
-		r.AddMock(BeanMock{
-			Object: &SimpleLogger{},
-			Target: gs.BeanIDFor[Logger](),
-		})
-		err := r.Refresh(conf.New())
-		assert.Error(t, err).String("mock *resolving.SimpleLogger does not implement required interface resolving.CtxLogger")
-	})
-
-	t.Run("mock error with multiple target beans", func(t *testing.T) {
-		r := New()
-		r.Provide(&TestBean{Value: 1}).Name("TestBean-1")
-		r.Provide(&TestBean{Value: 2}).Name("TestBean-2")
-		r.AddMock(BeanMock{
-			Object: &TestBean{},
-			Target: gs.BeanIDFor[*TestBean](),
-		})
-		err := r.Refresh(conf.New())
-		assert.Error(t, err).Matches("found duplicate mocked beans")
 	})
 
 	t.Run("module error", func(t *testing.T) {
@@ -262,17 +222,6 @@ func TestResolving(t *testing.T) {
 
 		r := New()
 		{
-			r.Provide(NewLogger, gs_arg.Value("c")).Name("c")
-			r.AddMock(BeanMock{
-				Object: NewZeroLogger("a@mocked"),
-				Target: gs.BeanIDFor[Logger]("a"),
-			})
-			r.AddMock(BeanMock{
-				Object: NewZeroLogger("b@mocked"),
-				Target: gs.BeanIDFor[CtxLogger]("b"),
-			})
-		}
-		{
 			b := r.Provide(&http.Server{}).
 				Condition(gs_cond.OnBean[*http.ServeMux]())
 			assert.That(t, b.GetName()).Equal("Server")
@@ -290,10 +239,6 @@ func TestResolving(t *testing.T) {
 		{
 			b := r.Provide(&TestBean{Value: 1}).Configuration().Name("TestBean")
 			assert.That(t, b.GetName()).Equal("TestBean")
-			r.AddMock(BeanMock{
-				Object: &TestBean{Value: 2},
-				Target: b.BeanID(),
-			})
 		}
 		{
 			b := r.Provide(&TestBean{Value: 1}).Name("TestBean-2").
@@ -301,16 +246,6 @@ func TestResolving(t *testing.T) {
 					Excludes: []string{"^NewChild$"},
 				})
 			assert.That(t, b.GetName()).Equal("TestBean-2")
-			r.AddMock(BeanMock{
-				Object: &ChildBean{Value: 2},
-				Target: gs.BeanIDFor[*ChildBean]("TestBean-2_NewChildV2"),
-			})
-		}
-		{
-			r.AddMock(BeanMock{
-				Object: &bytes.Buffer{},
-				Target: gs.BeanIDFor[*bytes.Buffer](),
-			})
 		}
 		{
 			b := r.Provide(&TestBean{Value: 3}).Name("TestBean-3")
@@ -334,7 +269,6 @@ func TestResolving(t *testing.T) {
 			names = append(names, b.GetName())
 		}
 		assert.That(t, names).Equal([]string{
-			"c",
 			"Server",
 			"ServeMux-2",
 			"TestBean",
@@ -343,6 +277,8 @@ func TestResolving(t *testing.T) {
 			"NewChild",
 			"a",
 			"b",
+			"TestBean_NewChild",
+			"TestBean_NewChildV2",
 			"TestBean-2_NewChildV2",
 		})
 	})

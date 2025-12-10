@@ -28,6 +28,8 @@ import (
 	"github.com/go-spring/log"
 	"github.com/go-spring/spring-base/util"
 	"github.com/go-spring/spring-core/conf"
+	"github.com/go-spring/spring-core/gs/internal/gs"
+	"github.com/go-spring/spring-core/gs/internal/gs_bean"
 	"github.com/go-spring/spring-core/gs/internal/gs_conf"
 	"github.com/go-spring/spring-core/gs/internal/gs_core"
 	"github.com/go-spring/spring-core/util/goutil"
@@ -124,11 +126,6 @@ func NewApp() *App {
 	}
 }
 
-// Configure sets the application configuration provider.
-func (app *App) Configure(configure func(cfg AppConfigurer)) {
-	app.configure = configure
-}
-
 // Config returns the current application configuration.
 func (app *App) Config() *gs_conf.AppConfig {
 	return app.p
@@ -141,6 +138,17 @@ func (app *App) RefreshProperties() error {
 		return err
 	}
 	return app.c.RefreshProperties(p)
+}
+
+// Configure sets the application configuration provider.
+func (app *App) Configure(configure func(cfg AppConfigurer)) {
+	app.configure = configure
+}
+
+// Provide registers a bean definition.
+// It accepts either an existing instance or a constructor function.
+func (app *App) Provide(objOrCtor any, args ...gs.Arg) *gs_bean.BeanDefinition {
+	return app.c.Provide(objOrCtor, args...)
 }
 
 // Start initializes and launches the application. It performs the following steps:

@@ -21,6 +21,7 @@ import (
 	"reflect"
 	"runtime"
 	"strings"
+	"testing"
 
 	"github.com/go-spring/log"
 	"github.com/go-spring/spring-core/conf"
@@ -185,9 +186,6 @@ type (
 	BeanProvider = gs_init.BeanProvider
 )
 
-// started indicates whether the application has started.
-var started bool
-
 // FuncRunner wraps a function into a Runner.
 func FuncRunner(fn func(ctx context.Context) error) Runner {
 	return gs_app.FuncRunner(fn)
@@ -256,23 +254,24 @@ func Group[T any, R any](tag string, fn func(c T) (R, error), d func(R) error) {
 
 // Run starts the application with a custom run function.
 func Run(fn ...func() error) {
-	started = true
-	new(AppStarter).Run(fn...)
+	NewApp().Run(fn...)
 }
 
 // RunAsync starts the application asynchronously and
 // returns a stop function to gracefully shut it down.
 func RunAsync() (func(), error) {
-	started = true
-	return new(AppStarter).RunAsync()
+	return NewApp().RunAsync()
 }
 
-//// Exiting returns true if the application is shutting down.
-//func Exiting() bool {
-//	return app.Exiting()
-//}
-//
-//// ShutDown gracefully stops the application.
-//func ShutDown() {
-//	app.ShutDown()
-//}
+// RunTest runs a test function with an automatically started application.
+func RunTest[T any](t *testing.T, f func(s *T)) {
+	app := NewApp()
+	s := new(T)
+	app.Provide(s).Root()
+	stop, err := app.RunAsync()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { stop() }()
+	f(s)
+}

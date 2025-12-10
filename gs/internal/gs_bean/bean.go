@@ -83,7 +83,6 @@ type BeanDefinition struct {
 	exports       []reflect.Type   // Interfaces exported by this bean
 	conditions    []gs.Condition   // Conditions controlling bean creation
 	status        BeanStatus       // Current lifecycle status
-	mocked        bool             // Indicates if the bean is mocked
 	fileLine      string           // File and line where bean is defined
 	configuration *Configuration   // Configuration for sub/child beans
 	root          bool             // 是否为 root 类型的 bean
@@ -92,16 +91,15 @@ type BeanDefinition struct {
 // Clone 克隆一个 BeanDefinition 对象
 func (d *BeanDefinition) Clone() *BeanDefinition {
 	r := *d
-	if d.f != nil || d.t.Kind() == reflect.Func {
+	if d.f != nil { // 构造函数
+		r.v = reflect.New(d.t).Elem()
 		return &r
 	}
-	r.v = reflect.New(d.t).Elem()
+	if d.t.Kind() == reflect.Func { // 函数对象
+		return &r
+	}
+	r.v = reflect.New(d.t.Elem())
 	return &r
-}
-
-// Mocked returns true if the bean is mocked.
-func (d *BeanDefinition) Mocked() bool {
-	return d.mocked
 }
 
 // validLifeCycleFunc checks if the given function is a valid lifecycle function.
@@ -235,17 +233,6 @@ func makeBean(t reflect.Type, v reflect.Value, f *gs_arg.Callable, name string) 
 		v:      v,
 		name:   name,
 		status: StatusDefault,
-	}
-}
-
-// SetMock replaces the bean's runtime instance with a mock object.
-func (d *BeanDefinition) SetMock(obj any) {
-	*d = BeanDefinition{
-		exports: d.exports,
-		mocked:  true,
-		t:       reflect.TypeOf(obj),
-		v:       reflect.ValueOf(obj),
-		name:    d.name,
 	}
 }
 

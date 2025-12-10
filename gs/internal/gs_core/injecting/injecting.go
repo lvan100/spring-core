@@ -538,7 +538,7 @@ func (c *Injector) wireBean(b *gs_bean.BeanDefinition, stack *Stack) error {
 	b.SetStatus(gs_bean.StatusCreated)
 
 	// If the bean is valid and not mocked, inject its internal dependencies
-	if v.IsValid() && !b.Mocked() {
+	if v.IsValid() {
 
 		// Perform field-level wiring on the bean value
 		if err = c.wireBeanValue(v, v.Type(), stack); err != nil {

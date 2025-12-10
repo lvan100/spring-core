@@ -39,19 +39,11 @@ const (
 	Refreshed
 )
 
-// BeanMock represents a mocked bean instance that can replace a real bean
-// for testing purposes.
-type BeanMock struct {
-	Object any       // The mock instance
-	Target gs.BeanID // The selector identifying the bean to replace
-}
-
 // Resolving is the core container responsible for holding bean definitions,
 // processing modules, applying mocks, scanning configuration beans, and
 // resolving beans against conditions.
 type Resolving struct {
 	state RefreshState              // current refresh state
-	mocks []BeanMock                // registered mocks to override beans
 	beans []*gs_bean.BeanDefinition // all beans managed by the container
 	roots []*gs_bean.BeanDefinition // root beans to wire at the end
 }
@@ -76,15 +68,6 @@ func (c *Resolving) Beans() []*gs_bean.BeanDefinition {
 		beans = append(beans, b)
 	}
 	return beans
-}
-
-// AddMock registers a mock bean which can override an existing bean
-// during the refresh phase.
-func (c *Resolving) AddMock(mock BeanMock) {
-	if c.state != RefreshDefault {
-		panic("container is already refreshing or refreshed")
-	}
-	c.mocks = append(c.mocks, mock)
 }
 
 // Provide registers a bean definition.
@@ -120,10 +103,6 @@ func (c *Resolving) Refresh(p conf.Properties) error {
 	c.state = Refreshing
 
 	if err := c.scanConfigurations(); err != nil {
-		return err
-	}
-
-	if err := c.applyMocks(); err != nil {
 		return err
 	}
 
@@ -173,26 +152,6 @@ func (c *Resolving) scanConfigurations() error {
 		if b.GetConfiguration() == nil {
 			continue
 		}
-
-		// First, check if a mock is defined for this configuration bean.
-		var foundMocks []BeanMock
-		for _, mock := range c.mocks {
-			if mock.Target.Name != "" && mock.Target.Name != b.GetName() {
-				continue
-			}
-			if mock.Target.Type != b.GetType() {
-				continue
-			}
-			foundMocks = append(foundMocks, mock)
-		}
-		if n := len(foundMocks); n > 1 {
-			return util.FormatError(nil, "found duplicate mock bean for '%s'", b.GetName())
-		} else if n == 1 {
-			b.SetMock(foundMocks[0].Object)
-			continue
-		}
-
-		// If not mocked, scan configuration methods.
 		beans, err := c.scanConfiguration(b)
 		if err != nil {
 			return util.FormatError(err, "scan configuration error")
@@ -278,44 +237,6 @@ func isBeanMatched(t reflect.Type, s string, b *gs_bean.BeanDefinition) bool {
 		}
 	}
 	return true
-}
-
-// applyMocks iterates over all registered mocks and applies them to matching beans.
-func (c *Resolving) applyMocks() error {
-	for _, mock := range c.mocks {
-		if err := c.applyMock(mock); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// applyMock applies a mock object to a target bean.
-// It ensures the mock implements all exported interfaces of the target bean.
-// If more than one target bean is found or the mock is invalid, an error is returned.
-func (c *Resolving) applyMock(mock BeanMock) error {
-	var foundBeans []*gs_bean.BeanDefinition
-	vt := reflect.TypeOf(mock.Object)
-	for _, b := range c.beans {
-		if !isBeanMatched(mock.Target.Type, mock.Target.Name, b) {
-			continue
-		}
-		// Verify mock implements all exported interfaces
-		for _, et := range b.Exports() {
-			if !vt.Implements(et) {
-				return util.FormatError(nil, "mock %T does not implement required interface %v", mock.Object, et)
-			}
-		}
-		foundBeans = append(foundBeans, b)
-	}
-	if len(foundBeans) == 0 {
-		return nil
-	}
-	if len(foundBeans) > 1 {
-		return util.FormatError(nil, "found duplicate mocked beans")
-	}
-	foundBeans[0].SetMock(mock.Object)
-	return nil
 }
 
 // resolveBeans iterates over all beans and resolves their conditions,
