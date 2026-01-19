@@ -24,7 +24,9 @@ import (
 )
 
 func init() {
-	gs.Provide(&GlobalService{})
+	gs.Provide(func(ctx *gs.ContextAware) *GlobalService {
+		return &GlobalService{}
+	})
 }
 
 type GlobalService struct {
@@ -43,7 +45,9 @@ func TestApp1(t *testing.T) {
 }
 
 func TestApp2(t *testing.T) {
-	gs.RunTest(t, func(s *struct {
+	gs.NewApp().Configure(func(g gs.App) {
+		g.Property("name", "myapp2")
+	}).RunTest(t, func(s *struct {
 		Name string         `value:"${name:=app2}"`
 		Svr  *GlobalService `autowire:""`
 		App1 *App1Service   `autowire:"?"`

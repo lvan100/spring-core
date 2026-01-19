@@ -18,15 +18,15 @@ package gs_dync
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"reflect"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/go-spring/spring-base/testing/assert"
 	"github.com/go-spring/spring-core/conf"
+	"github.com/go-spring/stdlib/errutil"
+	"github.com/go-spring/stdlib/testing/assert"
 )
 
 type MockPanicRefreshable struct{}
@@ -38,7 +38,7 @@ func (m *MockPanicRefreshable) onRefresh(prop conf.Properties, param conf.BindPa
 type MockErrorRefreshable struct{}
 
 func (m *MockErrorRefreshable) onRefresh(prop conf.Properties, param conf.BindParam) error {
-	return errors.New("mock error")
+	return errutil.Explain(nil, "mock error")
 }
 
 func TestValue(t *testing.T) {
@@ -65,16 +65,14 @@ func TestValue(t *testing.T) {
 	var wg sync.WaitGroup
 	for i := range 5 {
 		n := i
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			l := v.NewListener()
 			if n == 4 {
 				return
 			}
 			<-l.C
 			assert.That(t, v.Value()).Equal(59)
-		}()
+		})
 	}
 
 	time.Sleep(50 * time.Millisecond)
@@ -147,12 +145,10 @@ func TestValue_ConcurrentAccess(t *testing.T) {
 	const goroutines = 100
 
 	for range goroutines {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			val := v.Value()
 			assert.Number(t, val).Between(0, 100)
-		}()
+		})
 	}
 
 	for i := range goroutines {
@@ -188,16 +184,14 @@ func TestValue_Listener(t *testing.T) {
 
 	var wg sync.WaitGroup
 	for _, l := range listeners {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			select {
 			case <-l.C:
 				assert.That(t, v.Value()).Equal(42)
 			case <-time.After(time.Second):
 				t.Errorf("timeout")
 			}
-		}()
+		})
 	}
 	wg.Wait()
 }

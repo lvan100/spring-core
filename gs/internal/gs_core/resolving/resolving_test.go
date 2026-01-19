@@ -18,18 +18,18 @@ package resolving
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"testing"
 
-	"github.com/go-spring/spring-base/testing/assert"
 	"github.com/go-spring/spring-core/conf"
 	"github.com/go-spring/spring-core/gs/internal/gs"
 	"github.com/go-spring/spring-core/gs/internal/gs_arg"
 	"github.com/go-spring/spring-core/gs/internal/gs_bean"
 	"github.com/go-spring/spring-core/gs/internal/gs_cond"
 	"github.com/go-spring/spring-core/gs/internal/gs_init"
+	"github.com/go-spring/stdlib/errutil"
+	"github.com/go-spring/stdlib/testing/assert"
 )
 
 type Logger interface {
@@ -116,7 +116,7 @@ func TestResolving(t *testing.T) {
 	t.Run("module error", func(t *testing.T) {
 		defer func() { gs_init.Clear() }()
 		gs_init.AddModule(nil, func(r gs_init.BeanProvider, p conf.Properties) error {
-			return errors.New("module error")
+			return errutil.Explain(nil, "module error")
 		})
 
 		r := New()
@@ -129,7 +129,7 @@ func TestResolving(t *testing.T) {
 		r := New()
 		r.Provide(&TestBean{Value: 1}).Condition(
 			gs_cond.OnFunc(func(ctx gs.ConditionContext) (bool, error) {
-				return false, errors.New("condition error")
+				return false, errutil.Explain(nil, "condition error")
 			}),
 		)
 		err := r.Refresh(conf.New())
@@ -143,7 +143,7 @@ func TestResolving(t *testing.T) {
 		)
 		r.Provide(&TestBean{Value: 1}).Condition(
 			gs_cond.OnFunc(func(ctx gs.ConditionContext) (bool, error) {
-				return false, errors.New("condition error")
+				return false, errutil.Explain(nil, "condition error")
 			}),
 		)
 		err := r.Refresh(conf.New())

@@ -19,7 +19,7 @@ package gs_util
 import (
 	"container/list"
 
-	"github.com/go-spring/spring-base/util"
+	"github.com/go-spring/stdlib/errutil"
 )
 
 // GetBeforeItems is a function type that returns a list of items
@@ -87,7 +87,7 @@ func tripleSortByAfter(sorting *list.List, toSort *list.List, sorted *list.List,
 
 		// Detect circular dependencies by checking if `c` is already being processed.
 		if searchInList(processing, c) != nil {
-			return util.FormatError(nil, "found sorting cycle") // todo: more details
+			return errutil.Explain(nil, "found sorting cycle") // todo: more details
 		}
 
 		// Check if the dependency `c` is already sorted or still in the toSort list.

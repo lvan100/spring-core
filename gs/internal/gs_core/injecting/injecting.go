@@ -28,12 +28,14 @@ import (
 	"testing"
 
 	"github.com/go-spring/log"
-	"github.com/go-spring/spring-base/util"
 	"github.com/go-spring/spring-core/conf"
 	"github.com/go-spring/spring-core/gs/internal/gs"
 	"github.com/go-spring/spring-core/gs/internal/gs_bean"
 	"github.com/go-spring/spring-core/gs/internal/gs_dync"
 	"github.com/go-spring/spring-core/gs/internal/gs_util"
+	"github.com/go-spring/stdlib/errutil"
+	"github.com/go-spring/stdlib/patchutil"
+	"github.com/go-spring/stdlib/typeutil"
 	"github.com/spf13/cast"
 )
 
@@ -95,7 +97,7 @@ func (c *Injecting) Refresh(roots, beans []*gs_bean.BeanDefinition) (err error) 
 		// If an error occurred, or there are unresolved beans in the stack,
 		// enrich the error message with the dependency path for easier debugging.
 		if err != nil || len(stack.beans) > 0 {
-			err = util.FormatError(nil, "%s ↩\n%s", err, stack.Path())
+			err = errutil.Explain(nil, "%s ↩\n%s", err, stack.Path())
 			log.Errorf(context.Background(), log.TagAppDef, "%s", err)
 		}
 	}()
@@ -126,7 +128,7 @@ func (c *Injecting) Refresh(roots, beans []*gs_bean.BeanDefinition) (err error) 
 			}
 		}
 	} else if len(stack.lazyFields) > 0 {
-		return util.FormatError(nil, "found circular autowire")
+		return errutil.Explain(nil, "found circular autowire")
 	}
 
 	// Step 3: Collect destroyer callbacks in dependency-safe order.
@@ -253,8 +255,8 @@ func toWireString(tags []WireTag) string {
 // be wired before it is returned.
 func (c *Injector) getBean(t reflect.Type, tag WireTag, stack *Stack) (*gs_bean.BeanDefinition, error) {
 	// Ensure the target type is valid for injection.
-	if !util.IsBeanInjectionTarget(t) {
-		return nil, util.FormatError(nil, "%s is not a valid receiver type", t.String())
+	if !typeutil.IsBeanInjectionTarget(t) {
+		return nil, errutil.Explain(nil, "%s is not a valid receiver type", t.String())
 	}
 
 	var foundBeans []*gs_bean.BeanDefinition
@@ -268,7 +270,7 @@ func (c *Injector) getBean(t reflect.Type, tag WireTag, stack *Stack) (*gs_bean.
 		if tag.nullable {
 			return nil, nil
 		}
-		return nil, util.FormatError(nil, "can't find bean, bean:%q type:%q", tag, t)
+		return nil, errutil.Explain(nil, "can't find bean, bean:%q type:%q", tag, t)
 	}
 
 	if len(foundBeans) > 1 {
@@ -277,7 +279,7 @@ func (c *Injector) getBean(t reflect.Type, tag WireTag, stack *Stack) (*gs_bean.
 			msg += "( " + b.String() + " ), "
 		}
 		msg = msg[:len(msg)-2] + "]"
-		return nil, util.FormatError(nil, "%s", msg)
+		return nil, errutil.Explain(nil, "%s", msg)
 	}
 
 	b := foundBeans[0]
@@ -294,8 +296,8 @@ func (c *Injector) getBean(t reflect.Type, tag WireTag, stack *Stack) (*gs_bean.
 func (c *Injector) getBeans(t reflect.Type, tags []WireTag, nullable bool, stack *Stack) ([]*gs_bean.BeanDefinition, error) {
 
 	et := t.Elem()
-	if !util.IsBeanInjectionTarget(et) {
-		return nil, util.FormatError(nil, "%s is not a valid receiver type", t.String())
+	if !typeutil.IsBeanInjectionTarget(et) {
+		return nil, errutil.Explain(nil, "%s is not a valid receiver type", t.String())
 	}
 
 	beans := c.beansByType[et]
@@ -313,7 +315,7 @@ func (c *Injector) getBeans(t reflect.Type, tags []WireTag, nullable bool, stack
 			// If we see the "*" wildcard, record its presence
 			if item.beanName == "*" {
 				if foundAny {
-					return nil, util.FormatError(nil, "more than one * in collection %q", tags)
+					return nil, errutil.Explain(nil, "more than one * in collection %q", tags)
 				}
 				foundAny = true
 				continue
@@ -334,7 +336,7 @@ func (c *Injector) getBeans(t reflect.Type, tags []WireTag, nullable bool, stack
 					msg += "( " + beans[i].String() + " ), "
 				}
 				msg = msg[:len(msg)-2] + "]"
-				return nil, util.FormatError(nil, "%s", msg)
+				return nil, errutil.Explain(nil, "%s", msg)
 			}
 
 			// Error if no matching bean is found (unless the tag is nullable)
@@ -342,7 +344,7 @@ func (c *Injector) getBeans(t reflect.Type, tags []WireTag, nullable bool, stack
 				if item.nullable {
 					continue
 				}
-				return nil, util.FormatError(nil, "can't find bean, bean:%q type:%q", item, t)
+				return nil, errutil.Explain(nil, "can't find bean, bean:%q type:%q", item, t)
 			}
 
 			// Classify beans as before or after the '*'
@@ -385,7 +387,7 @@ func (c *Injector) getBeans(t reflect.Type, tags []WireTag, nullable bool, stack
 		if nullable {
 			return nil, nil
 		}
-		return nil, util.FormatError(nil, "no beans collected for %q", toWireString(tags))
+		return nil, errutil.Explain(nil, "no beans collected for %q", toWireString(tags))
 	}
 
 	// If the container is in the refreshing state, wire the beans before returning them
@@ -505,7 +507,7 @@ func (c *Injector) wireBean(b *gs_bean.BeanDefinition, stack *Stack) error {
 	// Detect circular dependencies
 	if b.Status() == gs_bean.StatusCreating && b.Callable() != nil {
 		if slices.Contains(stack.beans, b) {
-			return util.FormatError(nil, "found circular autowire")
+			return errutil.Explain(nil, "found circular autowire")
 		}
 	}
 
@@ -537,7 +539,7 @@ func (c *Injector) wireBean(b *gs_bean.BeanDefinition, stack *Stack) error {
 
 	b.SetStatus(gs_bean.StatusCreated)
 
-	// If the bean is valid and not mocked, inject its internal dependencies
+	// If the bean is valid, inject its internal dependencies
 	if v.IsValid() {
 
 		// Perform field-level wiring on the bean value
@@ -580,7 +582,7 @@ func (c *Injector) getBeanValue(b *gs_bean.BeanDefinition, stack *Stack) (reflec
 	}
 
 	// Check if the last return value is an error
-	if o := out[len(out)-1]; util.IsErrorType(o.Type()) {
+	if o := out[len(out)-1]; typeutil.IsErrorType(o.Type()) {
 		if err, ok := o.Interface().(error); ok && err != nil {
 			if c.forceAutowireIsNullable {
 				log.Warnf(context.Background(), log.TagAppDef, "autowire error: %v", err)
@@ -591,9 +593,9 @@ func (c *Injector) getBeanValue(b *gs_bean.BeanDefinition, stack *Stack) (reflec
 	}
 
 	// Assign the returned value to the bean
-	if val := out[0]; util.IsBeanType(val.Type()) {
+	if val := out[0]; typeutil.IsBeanType(val.Type()) {
 		// Convert interface values to pointers if necessary
-		if !val.IsNil() && val.Kind() == reflect.Interface && util.IsPropBindingTarget(val.Elem().Type()) {
+		if !val.IsNil() && val.Kind() == reflect.Interface && typeutil.IsPropBindingTarget(val.Elem().Type()) {
 			v := reflect.New(val.Elem().Type())
 			v.Elem().Set(val.Elem())
 			b.GetValue().Set(v)
@@ -606,7 +608,7 @@ func (c *Injector) getBeanValue(b *gs_bean.BeanDefinition, stack *Stack) (reflec
 
 	// Ensure the value is not nil
 	if b.GetValue().IsNil() {
-		return reflect.Value{}, util.FormatError(nil, "%s return nil", b.String())
+		return reflect.Value{}, errutil.Explain(nil, "%s return nil", b.String())
 	}
 
 	// If the value is an interface, unwrap it
@@ -649,7 +651,7 @@ func (c *Injector) wireStruct(v reflect.Value, t reflect.Type, opt conf.BindPara
 
 		// Patch unexported fields so they can be set via reflection
 		if !fv.CanInterface() {
-			fv = util.PatchValue(fv)
+			fv = patchutil.PatchValue(fv)
 		}
 
 		fieldPath := opt.Path + "." + ft.Name
@@ -666,7 +668,7 @@ func (c *Injector) wireStruct(v reflect.Value, t reflect.Type, opt conf.BindPara
 				stack.lazyFields = append(stack.lazyFields, f)
 			} else {
 				if err := c.autowire(fv, tag, stack); err != nil {
-					return util.FormatError(err, "%q wired error", fieldPath)
+					return errutil.Explain(err, "%q wired error", fieldPath)
 				}
 			}
 			continue

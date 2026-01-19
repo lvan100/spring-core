@@ -18,7 +18,6 @@ package gs_arg
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"net/http"
 	"reflect"
@@ -26,9 +25,10 @@ import (
 	"testing"
 
 	"github.com/go-spring/gs-mock/gsmock"
-	"github.com/go-spring/spring-base/testing/assert"
 	"github.com/go-spring/spring-core/gs/internal/gs"
 	"github.com/go-spring/spring-core/gs/internal/gs_cond"
+	"github.com/go-spring/stdlib/errutil"
+	"github.com/go-spring/stdlib/testing/assert"
 )
 
 func TestTagArg(t *testing.T) {
@@ -65,7 +65,7 @@ func TestTagArg(t *testing.T) {
 		m := gsmock.NewManager()
 		c := gs.NewArgContextMockImpl(m)
 		c.MockBind().Handle(func(v reflect.Value, s string) error {
-			return errors.New("bind error")
+			return errutil.Explain(nil, "bind error")
 		})
 
 		tag := Tag("${int:=3}")
@@ -91,7 +91,7 @@ func TestTagArg(t *testing.T) {
 		m := gsmock.NewManager()
 		c := gs.NewArgContextMockImpl(m)
 		c.MockWire().Handle(func(v reflect.Value, s string) error {
-			return errors.New("wire error")
+			return errutil.Explain(nil, "wire error")
 		})
 
 		tag := Tag("server")
@@ -458,7 +458,7 @@ func TestCallable_Call(t *testing.T) {
 
 	t.Run("function return error", func(t *testing.T) {
 		fn := func(a int, b string) (string, error) {
-			return "", errors.New("execution error")
+			return "", errutil.Explain(nil, "execution error")
 		}
 		args := []gs.Arg{
 			Value(1),
@@ -724,7 +724,7 @@ func TestBindArg_GetArgValue(t *testing.T) {
 
 	t.Run("error in function execution", func(t *testing.T) {
 		fn := func(a int, b string) (string, error) {
-			return "", errors.New("execution error")
+			return "", errutil.Explain(nil, "execution error")
 		}
 		args := []gs.Arg{
 			Value(1),
@@ -777,7 +777,7 @@ func TestBindArg_GetArgValue(t *testing.T) {
 		}
 		arg := Bind(fn, args...)
 		arg.Condition(gs_cond.OnFunc(func(ctx gs.ConditionContext) (bool, error) {
-			return false, errors.New("condition error")
+			return false, errutil.Explain(nil, "condition error")
 		}))
 
 		m := gsmock.NewManager()

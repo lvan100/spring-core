@@ -1,3 +1,22 @@
+/*
+ * Copyright 2025 The Go-Spring Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// Package gs_init provides registration and management of modules
+// and beans for the Go-Spring IoC container. It allows conditional
+// module registration and keeps track of all registered beans.
 package gs_init
 
 import (
@@ -10,8 +29,8 @@ import (
 )
 
 var (
-	beans   []*gs_bean.BeanDefinition
 	modules []Module
+	beans   []*gs_bean.BeanDefinition
 )
 
 // BeanProvider defines the API for registering beans in the IoC container.
@@ -19,17 +38,25 @@ type BeanProvider interface {
 	Provide(objOrCtor any, args ...gs.Arg) *gs_bean.BeanDefinition
 }
 
-// ModuleFunc defines the signature of a module function.
+// ModuleFunc defines the signature of a module function that registers
+// beans using a BeanProvider. The function receives a set of configuration
+// properties as input.
 type ModuleFunc func(r BeanProvider, p conf.Properties) error
 
-// Module represents a module that can register additional beans
-// when certain conditions are met.
+// Module represents a conditional module that can register beans
+// when its Condition is satisfied.
 type Module struct {
 	ModuleFunc ModuleFunc
 	Condition  gs.Condition
 }
 
+// Modules returns all registered modules.
+func Modules() []Module {
+	return modules
+}
+
 // Beans returns all registered beans.
+// In test mode, it returns cloned instances to avoid mutating global state.
 func Beans() []*gs_bean.BeanDefinition {
 	if !testing.Testing() {
 		return beans
@@ -41,25 +68,13 @@ func Beans() []*gs_bean.BeanDefinition {
 	return ret
 }
 
-// Modules returns all registered modules.
-func Modules() []Module {
-	return modules
+// AddBean registers a new bean definition in the global registry.
+func AddBean(bean *gs_bean.BeanDefinition) {
+	beans = append(beans, bean)
 }
 
-// Clear clears all registered beans and modules.
-func Clear() {
-	beans = nil
-	modules = nil
-}
-
-// Provide registers a bean definition.
-func Provide(objOrCtor any, args ...gs.Arg) *gs_bean.BeanDefinition {
-	b := gs_bean.NewBean(objOrCtor, args...)
-	beans = append(beans, b)
-	return b
-}
-
-// AddModule registers a module function.
+// AddModule registers a new module function along with its activation
+// conditions. The module will only be applied if the conditions satisfied.
 func AddModule(conditions []gs_cond.ConditionOnProperty, fn ModuleFunc) {
 	var arr []gs.Condition
 	for _, cond := range conditions {
@@ -69,4 +84,11 @@ func AddModule(conditions []gs_cond.ConditionOnProperty, fn ModuleFunc) {
 		ModuleFunc: fn,
 		Condition:  gs_cond.And(arr...),
 	})
+}
+
+// Clear resets all registered beans and modules, effectively emptying
+// the global registry.
+func Clear() {
+	beans = nil
+	modules = nil
 }

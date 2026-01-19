@@ -25,18 +25,31 @@ import (
 	"testing"
 
 	"github.com/go-spring/log"
-	"github.com/go-spring/spring-base/util"
 	"github.com/go-spring/spring-core/gs/internal/gs"
 	"github.com/go-spring/spring-core/gs/internal/gs_app"
+	"github.com/go-spring/spring-core/gs/internal/gs_bean"
+	"github.com/go-spring/stdlib/errutil"
+	"github.com/go-spring/stdlib/goutil"
 )
 
 // started indicates whether the application has started.
 var started bool
 
-// AppStarter is a wrapper to manage the lifecycle of a Spring application.
-// It handles initialization, running, graceful shutdown, and logging.
+// App defines the interface for a Go-Spring application instance.
+// It allows setting properties and providing beans to the IoC container.
+type App interface {
+	// Property sets a key-value property in the application configuration.
+	Property(key string, val string)
+	// Provide registers an object or constructor as a bean in the application.
+	Provide(objOrCtor any, args ...gs.Arg) *gs_bean.BeanDefinition
+}
+
+// AppStarter wraps a gs_app.App and manages its lifecycle.
+// It provides methods for initialization, configuration, starting,
+// stopping, running, and testing the application.
 type AppStarter struct {
 	app *gs_app.App
+	cfg func(App)
 }
 
 // NewApp creates a new AppStarter instance.
@@ -47,22 +60,28 @@ func NewApp() *AppStarter {
 	}
 }
 
-// Configure sets the application configuration provider.
-func (s *AppStarter) Configure(f func(cfg gs_app.AppConfigurer)) *AppStarter {
-	s.app.Configure(f)
+// Configure sets the configuration function that will be applied to the application
+// before it starts. It returns the AppStarter instance for chaining.
+func (s *AppStarter) Configure(f func(App)) *AppStarter {
+	s.cfg = f
 	return s
 }
 
-// Start starts the application asynchronously and returns a function
-// that can be used to trigger shutdown from outside.
+// Start initializes and starts the application. It prints the banner,
+// applies the configuration function if provided, and starts the underlying gs_app.App.
+// Returns an error if the application fails to start.
 func (s *AppStarter) Start() error {
-
 	// Print banner
 	printBanner()
 
+	// Apply user configuration
+	if s.cfg != nil {
+		s.cfg(s.app)
+	}
+
 	// Start application
 	if err := s.app.Start(); err != nil {
-		err = util.WrapError(err, "start app failed")
+		err = errutil.Stack(err, "start app failed")
 		log.Errorf(context.Background(), log.TagAppDef, "%s", err)
 		return err
 	}
@@ -70,59 +89,71 @@ func (s *AppStarter) Start() error {
 	return nil
 }
 
-// Stop triggers graceful shutdown of the application.
+// Stop triggers a graceful shutdown of the application and waits
+// until all resources and goroutines have completed.
 func (s *AppStarter) Stop() {
 	s.app.ShutDown()
 	s.app.WaitForShutdown()
 }
 
-// Run starts the application with a custom run function.
+// Run creates and starts a new application using default settings.
 func Run() error {
 	return NewApp().Run()
 }
 
-// Run starts the application, optionally runs a user-defined callback,
-// and waits for termination signals (e.g., SIGTERM, Ctrl+C) to trigger graceful shutdown.
+// Run starts the application, applies configuration, and waits for
+// termination signals (e.g., SIGTERM, Ctrl+C) to trigger a graceful shutdown.
+// If no servers are running, the application stops immediately.
 func (s *AppStarter) Run() error {
-
 	if err := s.Start(); err != nil {
 		return err
 	}
 
-	go func() {
+	// If no servers are running, stop immediately
+	if len(s.app.Servers) == 0 {
+		s.Stop()
+		return nil
+	}
+
+	// Listen for termination signals in a separate goroutine
+	goutil.Go(s.app.Context(), func(ctx context.Context) {
 		ch := make(chan os.Signal, 1)
 		signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
 		sig := <-ch
 		signal.Stop(ch)
 		close(ch)
-		log.Infof(context.Background(), log.TagAppDef, "Received signal: %v", sig)
+		log.Infof(ctx, log.TagAppDef, "Received signal: %v", sig)
 		s.app.ShutDown()
-	}()
+	}, false)
 
+	// Wait for shutdown to complete
 	s.app.WaitForShutdown()
 	return nil
 }
 
-// RunTest runs a test function.
+// RunTest runs a test function using a new application instance.
 func RunTest(t *testing.T, f any) {
 	NewApp().RunTest(t, f)
 }
 
-// RunTest runs a user-defined test function.
+// RunTest runs a user-defined test function with a provided test object.
+// It initializes the application, registers the test object as a bean,
+// starts the application, executes the test, and ensures graceful shutdown.
 func (s *AppStarter) RunTest(t *testing.T, f any) {
 	ft := reflect.TypeOf(f)
 	obj := reflect.New(ft.In(0).Elem())
 
-	// 提供测试对象
+	// Provide the test object as a bean
 	s.app.Provide(obj.Interface()).
 		Name("__tester__").
 		Export(gs.As[any]())
 
+	// Start the application
 	if err := s.Start(); err != nil {
 		t.Fatal(err)
 	}
 	defer func() { s.Stop() }()
 
-	// 执行测试函数
+	// Execute the test function
 	reflect.ValueOf(f).Call([]reflect.Value{obj})
 }

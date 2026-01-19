@@ -17,7 +17,6 @@
 package conf_test
 
 import (
-	"errors"
 	"image"
 	"io"
 	"reflect"
@@ -25,8 +24,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-spring/spring-base/testing/assert"
 	"github.com/go-spring/spring-core/conf"
+	"github.com/go-spring/stdlib/errutil"
+	"github.com/go-spring/stdlib/testing/assert"
 	"github.com/spf13/cast"
 )
 
@@ -50,7 +50,7 @@ func PointConverter(val string) (image.Point, error) {
 
 func PointSplitter(str string) ([]string, error) {
 	if !strings.HasPrefix(str, "(") || !strings.HasSuffix(str, ")") {
-		return nil, errors.New("split error")
+		return nil, errutil.Explain(nil, "split error")
 	}
 	var ret []string
 	var lastIndex int
@@ -109,7 +109,7 @@ func TestSplitter(t *testing.T) {
 
 func TestSplitterError(t *testing.T) {
 	conf.RegisterSplitter("ErrorSplitter", func(str string) ([]string, error) {
-		return nil, errors.New("splitter error")
+		return nil, errutil.Explain(nil, "splitter error")
 	})
 
 	t.Run("splitter returns error", func(t *testing.T) {
@@ -726,7 +726,7 @@ func TestProperties_Bind(t *testing.T) {
 		v := reflect.ValueOf(&s).Elem()
 		err = conf.BindValue(conf.New(), v, v.Type(), param,
 			funcFilter(func(i any, param conf.BindParam) (bool, error) {
-				return false, errors.New("filter error")
+				return false, errutil.Explain(nil, "filter error")
 			}))
 		assert.Error(t, err).Matches("filter error")
 		assert.That(t, s.Value).Equal(0)

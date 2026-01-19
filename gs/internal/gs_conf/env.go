@@ -20,8 +20,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/go-spring/spring-base/util"
 	"github.com/go-spring/spring-core/conf"
+	"github.com/go-spring/stdlib/errutil"
 )
 
 // Environment represents the environment configuration.
@@ -66,7 +66,7 @@ func (c *Environment) CopyTo(p *conf.MutableProperties) error {
 		}
 
 		if err := p.Set(propKey, v, fileID); err != nil {
-			return util.FormatError(err, "set env %s error", env)
+			return errutil.Explain(err, "set env %s error", env)
 		}
 	}
 	return nil

@@ -15,11 +15,11 @@
  */
 
 // Package gs_conf provides a layered configuration system for Go-Spring
-// applications. It unifies multiple configuration sources and resolves them
-// into a single immutable property set.
+// applications. It consolidates multiple configuration sources into a
+// single immutable property set, supporting profile-specific files
+// and optional import of additional configuration files.
 //
-// The supported sources include:
-//
+// Supported configuration sources include:
 //   - Built-in system defaults (SysConf)
 //   - Local configuration files (e.g., ./conf/app.yaml)
 //   - Remote configuration files (from config servers)
@@ -27,14 +27,8 @@
 //   - Operating system environment variables
 //   - Command-line arguments
 //
-// Sources are merged in a defined order so that later sources override
-// properties from earlier ones. This enables flexible deployment patterns:
-// defaults and packaged files supply baseline values, while environment
-// variables and CLI options can easily override them in containerized or
-// cloud-native environments.
-//
-// The package also supports profile-specific configuration files (e.g.,
-// app-dev.yaml) and allows adding extra directories or files at runtime.
+// Sources are applied in a defined order; later sources override
+// earlier ones when the same key is defined multiple times.
 package gs_conf
 
 import (
@@ -43,32 +37,33 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/go-spring/spring-base/util"
 	"github.com/go-spring/spring-core/conf"
+	"github.com/go-spring/stdlib/errutil"
 )
 
-// osStat only for test.
-var osStat = os.Stat
-
 // PropertyCopier defines the interface for any configuration source
-// that can copy its key-value pairs into a target conf.MutableProperties.
+// that can copy its key-value pairs into a MutableProperties instance.
 type PropertyCopier interface {
 	CopyTo(out *conf.MutableProperties) error
 }
 
-// NamedPropertyCopier is a wrapper around PropertyCopier that also
-// carries a human-readable Name. The Name is used for logging,
-// debugging or error reporting when merging multiple sources.
+// NamedPropertyCopier is a wrapper around PropertyCopier that carries
+// a human-readable name. The Name field is used for logging, debugging,
+// or error reporting when merging multiple configuration sources.
 type NamedPropertyCopier struct {
 	PropertyCopier
 	Name string
 }
 
-// NewNamedPropertyCopier creates a new instance of NamedPropertyCopier.
+// NewNamedPropertyCopier creates a new NamedPropertyCopier instance
+// with the given name and underlying PropertyCopier.
 func NewNamedPropertyCopier(name string, p PropertyCopier) *NamedPropertyCopier {
 	return &NamedPropertyCopier{PropertyCopier: p, Name: name}
 }
 
+// CopyTo copies the properties from the underlying PropertyCopier into
+// the given MutableProperties instance. If PropertyCopier is nil, this
+// method does nothing and returns nil.
 func (c *NamedPropertyCopier) CopyTo(out *conf.MutableProperties) error {
 	if c.PropertyCopier != nil {
 		return c.PropertyCopier.CopyTo(out)
@@ -76,9 +71,8 @@ func (c *NamedPropertyCopier) CopyTo(out *conf.MutableProperties) error {
 	return nil
 }
 
-// AppConfig represents a layered configuration for the application runtime.
-// The layers, in their merge order, typically include:
-//
+// AppConfig represents the layered configuration of an application.
+// The typical merge order is:
 //  1. System defaults (SysConf)
 //  2. Local configuration files
 //  3. Remote configuration files
@@ -86,135 +80,97 @@ func (c *NamedPropertyCopier) CopyTo(out *conf.MutableProperties) error {
 //  5. Environment variables
 //  6. Command-line arguments
 //
-// Layers appearing later in the list override earlier ones when keys conflict.
+// Later layers override earlier ones in case of key conflicts.
 type AppConfig struct {
-	Properties  *conf.MutableProperties // Properties ...
-	LocalFile   *PropertySources        // Configuration sources from local files.
-	Environment *Environment            // Environment variables as configuration source.
-	CommandArgs *CommandArgs            // Command-line arguments as configuration source.
+	Properties *conf.MutableProperties
 }
 
-// NewAppConfig creates a new instance of AppConfig.
+// NewAppConfig creates a new AppConfig instance.
 func NewAppConfig() *AppConfig {
 	return &AppConfig{
-		Properties:  conf.New(),
-		LocalFile:   NewPropertySources(),
-		Environment: NewEnvironment(),
-		CommandArgs: NewCommandArgs(),
+		Properties: conf.New(),
 	}
 }
 
 // merge combines multiple NamedPropertyCopier instances into a single
-// conf.Properties. The sources are applied in order; properties from
-// later sources override earlier ones. If any source fails to copy,
-// the merge aborts and returns an error indicating the failing source.
+// Properties instance. Sources are applied in order; later sources
+// override earlier ones. If any source fails to copy, merge aborts
+// and returns an error identifying the failing source.
 func merge(sources ...*NamedPropertyCopier) (conf.Properties, error) {
 	out := conf.New()
 	for _, s := range sources {
 		if s != nil {
 			if err := s.CopyTo(out); err != nil {
-				return nil, util.WrapError(err, "merge error in source %s", s.Name)
+				return nil, errutil.Stack(err, "merge error in source %s", s.Name)
 			}
 		}
 	}
 	return out, nil
 }
 
-// SysConfig returns the system configuration, which includes the
-// properties from the system defaults, environment variables, and
-// command-line arguments.
-func (c *AppConfig) SysConfig() (conf.Properties, error) {
-	return merge(
-		NewNamedPropertyCopier("sys", c.Properties),
-		NewNamedPropertyCopier("env", c.Environment),
-		NewNamedPropertyCopier("cmd", c.CommandArgs),
-	)
-}
+// Refresh merges all configuration layers into a read-only Properties instance.
+// If useImport is true, it additionally loads and merges imported configuration
+// files defined via the "spring.app.imports" property.
+func (c *AppConfig) Refresh(useImport bool) (conf.Properties, error) {
+	env := NewEnvironment()
+	cmd := NewCommandArgs()
 
-// Refresh merges all layers of configurations into a read-only properties.
-func (c *AppConfig) Refresh() (conf.Properties, error) {
-	p, err := c.SysConfig()
+	p, err := merge(
+		NewNamedPropertyCopier("app", c.Properties),
+		NewNamedPropertyCopier("env", env),
+		NewNamedPropertyCopier("cmd", cmd),
+	)
 	if err != nil {
-		return nil, util.WrapError(err, "refresh error in source sys")
+		return nil, err
 	}
 
-	localFiles, err := c.LocalFile.loadFiles(p)
+	// Load local configuration files
+	localFiles, err := loadFiles(p)
 	if err != nil {
-		return nil, util.WrapError(err, "refresh error in source local")
+		return nil, errutil.Stack(err, "refresh error in source local")
 	}
 
 	var sources []*NamedPropertyCopier
-	sources = append(sources, NewNamedPropertyCopier("sys", c.Properties))
+	sources = append(sources, NewNamedPropertyCopier("app", c.Properties))
 	sources = append(sources, localFiles...)
-	sources = append(sources, NewNamedPropertyCopier("env", c.Environment))
-	sources = append(sources, NewNamedPropertyCopier("cmd", c.CommandArgs))
+	sources = append(sources, NewNamedPropertyCopier("env", env))
+	sources = append(sources, NewNamedPropertyCopier("cmd", cmd))
+	if p, err = merge(sources...); err != nil {
+		return nil, err
+	}
+
+	// Skip imports if not enabled
+	if !useImport {
+		return p, nil
+	}
+
+	var i struct {
+		Imports []string `value:"${spring.app.imports:=}"`
+	}
+	if err = p.Bind(&i); err != nil {
+		return nil, err
+	}
+
+	sources = []*NamedPropertyCopier{}
+	sources = append(sources, NewNamedPropertyCopier("app", c.Properties))
+	sources = append(sources, localFiles...)
+	for _, source := range i.Imports {
+		if p, err = conf.Load(source); err != nil {
+			return nil, err
+		}
+		if p != nil {
+			sources = append(sources, NewNamedPropertyCopier(source, p))
+		}
+	}
+	sources = append(sources, NewNamedPropertyCopier("env", env))
+	sources = append(sources, NewNamedPropertyCopier("cmd", cmd))
 	return merge(sources...)
 }
 
-/****************************** PropertySources ******************************/
-
-// PropertySources represents a collection of configuration files
-// associated with a particular configuration type and logical name.
-// It supports both default directories and additional user-supplied
-// directories or files.
-type PropertySources struct {
-	extraDirs  []string // Extra directories to search for configuration files.
-	extraFiles []string // Extra individual files to include.
-}
-
-// NewPropertySources creates a new instance of PropertySources.
-func NewPropertySources() *PropertySources {
-	return &PropertySources{}
-}
-
-// Reset clears all previously added extra directories and files.
-func (p *PropertySources) Reset() {
-	p.extraFiles = nil
-	p.extraDirs = nil
-}
-
-// AddDir registers one or more additional directories to search for
-// configuration files. Non-existent directories are silently ignored,
-// but if the path exists and is not a directory, it panics.
-func (p *PropertySources) AddDir(dirs ...string) {
-	for _, d := range dirs {
-		info, err := osStat(d)
-		if err != nil {
-			if !os.IsNotExist(err) {
-				panic(err)
-			}
-			continue
-		}
-		if !info.IsDir() {
-			panic(util.FormatError(nil, "should be a directory %s", d))
-		}
-	}
-	p.extraDirs = append(p.extraDirs, dirs...)
-}
-
-// AddFile registers one or more additional configuration files.
-// Non-existent files are silently ignored, but if the path exists
-// and is a directory, it panics.
-func (p *PropertySources) AddFile(files ...string) {
-	for _, f := range files {
-		info, err := osStat(f)
-		if err != nil {
-			if !os.IsNotExist(err) {
-				panic(err)
-			}
-			continue
-		}
-		if info.IsDir() {
-			panic(util.FormatError(nil, "should be a file %s", f))
-		}
-	}
-	p.extraFiles = append(p.extraFiles, files...)
-}
-
-// getFiles generates the list of configuration file paths to try,
-// including both the base config name and profile-specific variants.
-// For example, with profile "dev", it will try "app-dev.yaml" etc.
-func (p *PropertySources) getFiles(dir string, resolver conf.Properties) ([]string, error) {
+// getAppFiles generates a list of candidate configuration file paths,
+// including both base files (app.yaml, app.properties, etc.) and
+// profile-specific variants (app-dev.yaml, app-prod.properties, etc.).
+func getAppFiles(dir string, activeProfiles []string) ([]string, error) {
 	extensions := []string{".properties", ".yaml", ".yml", ".toml", ".tml", ".json"}
 
 	var files []string
@@ -222,42 +178,39 @@ func (p *PropertySources) getFiles(dir string, resolver conf.Properties) ([]stri
 		files = append(files, filepath.Join(dir, "app"+ext))
 	}
 
-	activeProfiles, err := resolver.Resolve("${spring.profiles.active:=}")
-	if err != nil {
-		return nil, err
-	}
-
-	if activeProfiles = strings.TrimSpace(activeProfiles); activeProfiles != "" {
-		for s := range strings.SplitSeq(activeProfiles, ",") {
-			if s = strings.TrimSpace(s); s != "" {
-				for _, ext := range extensions {
-					files = append(files, filepath.Join(dir, "app-"+s+ext))
-				}
-			}
+	for _, s := range activeProfiles {
+		for _, ext := range extensions {
+			files = append(files, filepath.Join(dir, "app-"+s+ext))
 		}
 	}
 	return files, nil
 }
 
-// loadFiles loads all candidate configuration files in order and wraps
-// successfully loaded ones as NamedPropertyCopier. Non-existent files
-// are skipped silently, while other loading errors abort the process.
-func (p *PropertySources) loadFiles(resolver conf.Properties) ([]*NamedPropertyCopier, error) {
-	defaultDir, err := resolver.Resolve("${spring.app.config.dir:=./conf}")
+// loadFiles loads all candidate configuration files in order and returns
+// them as NamedPropertyCopier instances. Non-existent files are skipped,
+// while other loading errors abort the process.
+func loadFiles(resolver conf.Properties) ([]*NamedPropertyCopier, error) {
+	dir, err := resolver.Resolve("${spring.app.config.dir:=./conf}")
 	if err != nil {
 		return nil, err
 	}
-	dirs := append([]string{defaultDir}, p.extraDirs...)
 
-	var files []string
-	for _, dir := range dirs {
-		temp, err := p.getFiles(dir, resolver)
-		if err != nil {
-			return nil, err
-		}
-		files = append(files, temp...)
+	strActiveProfiles, err := resolver.Resolve("${spring.profiles.active:=}")
+	if err != nil {
+		return nil, err
 	}
-	files = append(files, p.extraFiles...)
+
+	var activeProfiles []string
+	for s := range strings.SplitSeq(strActiveProfiles, ",") {
+		if s = strings.TrimSpace(s); s != "" {
+			activeProfiles = append(activeProfiles, s)
+		}
+	}
+
+	files, err := getAppFiles(dir, activeProfiles)
+	if err != nil {
+		return nil, err
+	}
 
 	var ret []*NamedPropertyCopier
 	for _, s := range files {
@@ -267,6 +220,7 @@ func (p *PropertySources) loadFiles(resolver conf.Properties) ([]*NamedPropertyC
 		}
 		c, err := conf.Load(filename)
 		if err != nil {
+			// Don't use `os.IsNotExist`
 			if errors.Is(err, os.ErrNotExist) {
 				continue
 			}

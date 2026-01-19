@@ -17,7 +17,6 @@
 package gs
 
 import (
-	"context"
 	"reflect"
 	"strings"
 
@@ -162,35 +161,15 @@ func None(conditions ...Condition) Condition {
 	return gs_cond.None(conditions...)
 }
 
-// OnEnableJobs is a shortcut for checking whether scheduled jobs are enabled.
-func OnEnableJobs() ConditionOnProperty {
-	return OnProperty(EnableJobsProp).HavingValue("true").MatchIfMissing()
-}
-
-// OnEnableServers is a shortcut for checking whether servers are enabled.
-func OnEnableServers() ConditionOnProperty {
-	return OnProperty(EnableServersProp).HavingValue("true").MatchIfMissing()
-}
-
 /*********************************** app *************************************/
 
 type (
 	Runner       = gs_app.Runner
-	Job          = gs_app.Job
 	Server       = gs_app.Server
 	ReadySignal  = gs_app.ReadySignal
+	ContextAware = gs_app.ContextAware
 	BeanProvider = gs_init.BeanProvider
 )
-
-// FuncRunner wraps a function into a Runner.
-func FuncRunner(fn func(ctx context.Context) error) Runner {
-	return gs_app.FuncRunner(fn)
-}
-
-// FuncJob wraps a context-aware function into a Job.
-func FuncJob(fn func(ctx context.Context) error) Job {
-	return gs_app.FuncJob(fn)
-}
 
 // Provide registers a bean definition. 全局函数。
 // It accepts either an existing instance or a constructor function.
@@ -200,7 +179,9 @@ func Provide(objOrCtor any, args ...Arg) *gs_bean.BeanDefinition {
 	if started {
 		panic("gs.Provide can only be called before the application is started")
 	}
-	return gs_init.Provide(objOrCtor, args...).Caller(1)
+	b := gs_bean.NewBean(objOrCtor, args...)
+	gs_init.AddBean(b)
+	return b.Caller(2)
 }
 
 // ModuleFunc defines the signature of a module function.
@@ -230,7 +211,7 @@ func Group[T any, R any](tag string, fn func(c T) (R, error), d func(R) error) {
 			return err
 		}
 		for name, c := range m {
-			b := r.Provide(fn, ValueArg(c)).Name(name)
+			b := r.Provide(fn, ValueArg(c)).Name(name).Caller(2)
 			if d != nil {
 				b.Destroy(d)
 			}

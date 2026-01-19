@@ -24,10 +24,10 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/go-spring/spring-base/util"
 	"github.com/go-spring/spring-core/gs/internal/gs"
 	"github.com/go-spring/spring-core/gs/internal/gs_arg"
 	"github.com/go-spring/spring-core/gs/internal/gs_cond"
+	"github.com/go-spring/stdlib/typeutil"
 )
 
 // BeanStatus represents the different lifecycle statuses of a bean.
@@ -106,7 +106,7 @@ func (d *BeanDefinition) Clone() *BeanDefinition {
 //
 //	func(bean) or func(bean) error
 func validLifeCycleFunc(fnType reflect.Type, beanType reflect.Type) bool {
-	if !util.IsFuncType(fnType) || fnType.NumIn() != 1 {
+	if !typeutil.IsFuncType(fnType) || fnType.NumIn() != 1 {
 		return false
 	}
 	if t := fnType.In(0); t.Kind() == reflect.Interface {
@@ -116,7 +116,7 @@ func validLifeCycleFunc(fnType reflect.Type, beanType reflect.Type) bool {
 	} else if t != beanType {
 		return false
 	}
-	return util.ReturnNothing(fnType) || util.ReturnOnlyError(fnType)
+	return typeutil.ReturnNothing(fnType) || typeutil.ReturnOnlyError(fnType)
 }
 
 // GetInit returns the bean's initialization function.
@@ -352,7 +352,7 @@ func NewBean(objOrCtor any, ctorArgs ...gs.Arg) *BeanDefinition {
 	}
 
 	t := v.Type()
-	if !util.IsBeanType(t) {
+	if !typeutil.IsBeanType(t) {
 		panic("bean must be ref type")
 	}
 
@@ -364,7 +364,7 @@ func NewBean(objOrCtor any, ctorArgs ...gs.Arg) *BeanDefinition {
 	// Handle constructor functions
 	if !fromValue && t.Kind() == reflect.Func {
 
-		if !util.IsConstructor(t) {
+		if !typeutil.IsConstructor(t) {
 			t1 := "func(...)bean"
 			t2 := "func(...)(bean, error)"
 			panic(fmt.Sprintf("constructor should be %s or %s", t1, t2))
@@ -385,12 +385,12 @@ func NewBean(objOrCtor any, ctorArgs ...gs.Arg) *BeanDefinition {
 		// Prepare the return type
 		out0 := t.Out(0)
 		v = reflect.New(out0)
-		if util.IsBeanType(out0) {
+		if typeutil.IsBeanType(out0) {
 			v = v.Elem()
 		}
 
 		t = v.Type()
-		if !util.IsBeanType(t) {
+		if !typeutil.IsBeanType(t) {
 			panic("bean must be ref type")
 		}
 

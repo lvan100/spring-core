@@ -17,16 +17,16 @@
 package gs_core
 
 import (
-	"errors"
 	"net/http"
 	"testing"
 
-	"github.com/go-spring/spring-base/testing/assert"
 	"github.com/go-spring/spring-core/conf"
 	"github.com/go-spring/spring-core/gs/internal/gs"
 	"github.com/go-spring/spring-core/gs/internal/gs_arg"
 	"github.com/go-spring/spring-core/gs/internal/gs_bean"
 	"github.com/go-spring/spring-core/gs/internal/gs_cond"
+	"github.com/go-spring/stdlib/errutil"
+	"github.com/go-spring/stdlib/testing/assert"
 )
 
 func TestContainer(t *testing.T) {
@@ -46,7 +46,7 @@ func TestContainer(t *testing.T) {
 		roots := []*gs_bean.BeanDefinition{
 			c.Provide(&http.Server{}).Condition(
 				gs_cond.OnFunc(func(ctx gs.ConditionContext) (bool, error) {
-					return false, errors.New("condition error")
+					return false, errutil.Explain(nil, "condition error")
 				}),
 			),
 		}

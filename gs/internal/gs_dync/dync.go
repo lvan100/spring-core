@@ -40,8 +40,8 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/go-spring/spring-base/util"
 	"github.com/go-spring/spring-core/conf"
+	"github.com/go-spring/stdlib/ordered"
 )
 
 // refreshable represents an object that can be dynamically refreshed.
@@ -182,7 +182,7 @@ func (p *Properties) Refresh(prop conf.Properties) (err error) {
 		changes[k] = struct{}{}
 	}
 
-	keys := util.OrderedMapKeys(changes)
+	keys := ordered.MapKeys(changes)
 	return p.refreshKeys(keys)
 }
 
@@ -206,7 +206,7 @@ func (p *Properties) refreshKeys(keys []string) (err error) {
 	// Sort and collect objects that need updating.
 	updateObjects := make([]*refreshObject, 0, len(updateIndexes))
 	{
-		ints := util.OrderedMapKeys(updateIndexes)
+		ints := ordered.MapKeys(updateIndexes)
 		for _, k := range ints {
 			updateObjects = append(updateObjects, updateIndexes[k])
 		}

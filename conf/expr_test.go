@@ -19,8 +19,8 @@ package conf_test
 import (
 	"testing"
 
-	"github.com/go-spring/spring-base/testing/assert"
 	"github.com/go-spring/spring-core/conf"
+	"github.com/go-spring/stdlib/testing/assert"
 )
 
 func TestExpr(t *testing.T) {

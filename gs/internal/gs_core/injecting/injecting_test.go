@@ -18,7 +18,6 @@ package injecting
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"reflect"
@@ -26,13 +25,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-spring/spring-base/testing/assert"
 	"github.com/go-spring/spring-core/conf"
 	"github.com/go-spring/spring-core/gs/internal/gs"
 	"github.com/go-spring/spring-core/gs/internal/gs_arg"
 	"github.com/go-spring/spring-core/gs/internal/gs_bean"
 	"github.com/go-spring/spring-core/gs/internal/gs_cond"
 	"github.com/go-spring/spring-core/gs/internal/gs_dync"
+	"github.com/go-spring/stdlib/errutil"
+	"github.com/go-spring/stdlib/testing/assert"
 )
 
 type Logger interface {
@@ -476,7 +476,7 @@ func TestInjecting(t *testing.T) {
 				Loggers []Logger `autowire:"sys"`
 			})),
 			objectBean(&SimpleLogger{}).Init(func(*SimpleLogger) error {
-				return errors.New("init error")
+				return errutil.Explain(nil, "init error")
 			}).Export(gs.As[Logger]()).Name("sys"),
 		}
 		err := r.Refresh(extractBeans(beans))
@@ -557,7 +557,7 @@ func TestInjecting(t *testing.T) {
 		beans := []*gs_bean.BeanDefinition{
 			objectBean(&s),
 			provideBean(func() (*ZeroLogger, error) {
-				return nil, errors.New("init error")
+				return nil, errutil.Explain(nil, "init error")
 			}),
 		}
 		err := r.Refresh(extractBeans(beans))
@@ -576,7 +576,7 @@ func TestInjecting(t *testing.T) {
 		beans := []*gs_bean.BeanDefinition{
 			objectBean(&s),
 			provideBean(func() (*ZeroLogger, error) {
-				return nil, errors.New("init error")
+				return nil, errutil.Explain(nil, "init error")
 			}),
 		}
 		err := r.Refresh(extractBeans(beans))
@@ -640,7 +640,7 @@ func TestInjecting(t *testing.T) {
 		r := New(conf.New())
 		beans := []*gs_bean.BeanDefinition{
 			objectBean(&SimpleLogger{}).Destroy(func(l *SimpleLogger) error {
-				return errors.New("destroy error")
+				return errutil.Explain(nil, "destroy error")
 			}),
 		}
 		err := r.Refresh(extractBeans(beans))

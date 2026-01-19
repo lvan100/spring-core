@@ -21,12 +21,13 @@ import (
 	"regexp"
 	"slices"
 
-	"github.com/go-spring/spring-base/util"
 	"github.com/go-spring/spring-core/conf"
 	"github.com/go-spring/spring-core/gs/internal/gs"
 	"github.com/go-spring/spring-core/gs/internal/gs_bean"
 	"github.com/go-spring/spring-core/gs/internal/gs_cond"
 	"github.com/go-spring/spring-core/gs/internal/gs_init"
+	"github.com/go-spring/stdlib/errutil"
+	"github.com/go-spring/stdlib/funcutil"
 )
 
 // RefreshState represents the current state of the container.
@@ -40,7 +41,7 @@ const (
 )
 
 // Resolving is the core container responsible for holding bean definitions,
-// processing modules, applying mocks, scanning configuration beans, and
+// processing modules, scanning configuration beans, and
 // resolving beans against conditions.
 type Resolving struct {
 	state RefreshState              // current refresh state
@@ -72,20 +73,19 @@ func (c *Resolving) Provide(objOrCtor any, args ...gs.Arg) *gs_bean.BeanDefiniti
 	}
 	b := gs_bean.NewBean(objOrCtor, args...)
 	c.beans = append(c.beans, b)
-	return b
+	return b.Caller(2)
 }
 
 // Refresh performs the full lifecycle of container initialization.
 // The phases are as follows:
 //  1. Apply registered modules to register additional beans.
 //  2. Scan configuration beans and register methods as beans.
-//  3. Apply mock beans to override specific target beans.
 //  4. Resolve conditions for all beans and mark inactive ones as deleted.
 //  5. Check for duplicate beans (by type and name).
 //  6. Validate that all root beans are resolved and ready to wire.
 func (c *Resolving) Refresh(p conf.Properties) error {
 	if c.state != RefreshDefault {
-		return util.FormatError(nil, "container is already refreshing or refreshed")
+		return errutil.Explain(nil, "container is already refreshing or refreshed")
 	}
 	c.state = RefreshPrepare
 
@@ -124,7 +124,7 @@ func (c *Resolving) applyModules(p conf.Properties) error {
 			}
 		}
 		if err := m.ModuleFunc(c, p); err != nil {
-			return util.FormatError(err, "apply module error")
+			return errutil.Explain(err, "apply module error")
 		}
 	}
 	return nil
@@ -139,7 +139,7 @@ func (c *Resolving) scanConfigurations() error {
 		}
 		beans, err := c.scanConfiguration(b)
 		if err != nil {
-			return util.FormatError(err, "scan configuration error")
+			return errutil.Explain(err, "scan configuration error")
 		}
 		c.beans = append(c.beans, beans...)
 	}
@@ -163,7 +163,7 @@ func (c *Resolving) scanConfiguration(bd *gs_bean.BeanDefinition) ([]*gs_bean.Be
 	for _, s := range ss {
 		p, err := regexp.Compile(s)
 		if err != nil {
-			return nil, util.FormatError(err, "invalid regexp '%s'", s)
+			return nil, errutil.Explain(err, "invalid regexp '%s'", s)
 		}
 		includes = append(includes, p)
 	}
@@ -172,7 +172,7 @@ func (c *Resolving) scanConfiguration(bd *gs_bean.BeanDefinition) ([]*gs_bean.Be
 	for _, s := range ss {
 		p, err := regexp.Compile(s)
 		if err != nil {
-			return nil, util.FormatError(err, "invalid regexp '%s'", s)
+			return nil, errutil.Explain(err, "invalid regexp '%s'", s)
 		}
 		excludes = append(excludes, p)
 	}
@@ -202,7 +202,7 @@ func (c *Resolving) scanConfiguration(bd *gs_bean.BeanDefinition) ([]*gs_bean.Be
 			b := gs_bean.NewBean(m.Func.Interface(), bd).
 				Name(bd.GetName() + "_" + m.Name).
 				Condition(gs_cond.OnBeanID(bd.BeanID()))
-			file, line, _ := util.FileLine(m.Func.Interface())
+			file, line, _ := funcutil.FileLine(m.Func.Interface())
 			b.SetFileLine(file, line)
 			ret = append(ret, b)
 			break
@@ -230,7 +230,7 @@ func (c *Resolving) resolveBeans(p conf.Properties) error {
 	ctx := &ConditionContext{p: p, c: c}
 	for _, b := range c.beans {
 		if err := ctx.resolveBean(b); err != nil {
-			return util.FormatError(err, "resolve bean error")
+			return errutil.Explain(err, "resolve bean error")
 		}
 	}
 	return nil
@@ -246,7 +246,7 @@ func (c *Resolving) checkDuplicateBeans() error {
 		for _, t := range append(b.Exports(), b.GetType()) {
 			beanID := gs.BeanID{Name: b.GetName(), Type: t}
 			if d, ok := beansByID[beanID]; ok {
-				return util.FormatError(nil, "found duplicate beans [%s] [%s]", b, d)
+				return errutil.Explain(nil, "found duplicate beans [%s] [%s]", b, d)
 			}
 			beansByID[beanID] = b
 		}

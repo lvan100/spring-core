@@ -24,10 +24,10 @@ import (
 	"testing"
 
 	"github.com/go-spring/gs-mock/gsmock"
-	"github.com/go-spring/spring-base/testing/assert"
-	"github.com/go-spring/spring-base/util"
 	"github.com/go-spring/spring-core/gs/internal/gs"
 	"github.com/go-spring/spring-core/gs/internal/gs_arg"
+	"github.com/go-spring/stdlib/funcutil"
+	"github.com/go-spring/stdlib/testing/assert"
 )
 
 func TestBeanStatus(t *testing.T) {
@@ -118,13 +118,13 @@ func TestBeanDefinition(t *testing.T) {
 			bean.Init(func(TestBeanInterface) (int, error) { return 0, nil })
 		}, "init should be func\\(bean\\) or func\\(bean\\)error")
 		bean.Init(InitTestBean)
-		assert.That(t, util.FuncName(bean.GetInit())).Equal("gs_bean.InitTestBean")
+		assert.That(t, funcutil.FuncName(bean.GetInit())).Equal("gs_bean.InitTestBean")
 		bean.Init(InitTestBeanV2)
-		assert.That(t, util.FuncName(bean.GetInit())).Equal("gs_bean.InitTestBeanV2")
+		assert.That(t, funcutil.FuncName(bean.GetInit())).Equal("gs_bean.InitTestBeanV2")
 		bean.InitMethod("Init")
-		assert.That(t, util.FuncName(bean.GetInit())).Equal("gs_bean.(*TestBean).Init")
+		assert.That(t, funcutil.FuncName(bean.GetInit())).Equal("gs_bean.(*TestBean).Init")
 		bean.InitMethod("InitV2")
-		assert.That(t, util.FuncName(bean.GetInit())).Equal("gs_bean.(*TestBean).InitV2")
+		assert.That(t, funcutil.FuncName(bean.GetInit())).Equal("gs_bean.(*TestBean).InitV2")
 		assert.Panic(t, func() {
 			bean.InitMethod("InitV3")
 		}, "method InitV3 not found on type \\*gs_bean.TestBean")
@@ -157,13 +157,13 @@ func TestBeanDefinition(t *testing.T) {
 			bean.Destroy(func(TestBeanInterface) (int, error) { return 0, nil })
 		}, "destroy should be func\\(bean\\) or func\\(bean\\)error")
 		bean.Destroy(DestroyTestBean)
-		assert.That(t, util.FuncName(bean.GetDestroy())).Equal("gs_bean.DestroyTestBean")
+		assert.That(t, funcutil.FuncName(bean.GetDestroy())).Equal("gs_bean.DestroyTestBean")
 		bean.Destroy(DestroyTestBeanV2)
-		assert.That(t, util.FuncName(bean.GetDestroy())).Equal("gs_bean.DestroyTestBeanV2")
+		assert.That(t, funcutil.FuncName(bean.GetDestroy())).Equal("gs_bean.DestroyTestBeanV2")
 		bean.DestroyMethod("Destroy")
-		assert.That(t, util.FuncName(bean.GetDestroy())).Equal("gs_bean.(*TestBean).Destroy")
+		assert.That(t, funcutil.FuncName(bean.GetDestroy())).Equal("gs_bean.(*TestBean).Destroy")
 		bean.DestroyMethod("DestroyV2")
-		assert.That(t, util.FuncName(bean.GetDestroy())).Equal("gs_bean.(*TestBean).DestroyV2")
+		assert.That(t, funcutil.FuncName(bean.GetDestroy())).Equal("gs_bean.(*TestBean).DestroyV2")
 		assert.Panic(t, func() {
 			bean.DestroyMethod("DestroyV3")
 		}, "method DestroyV3 not found on type \\*gs_bean.TestBean")

@@ -17,46 +17,77 @@
 package provider
 
 import (
+	"os"
 	"strings"
 
-	"github.com/go-spring/spring-base/util"
 	"github.com/go-spring/spring-core/conf/reader"
-	"github.com/lvan100/golib/flatten"
+	"github.com/go-spring/stdlib/errutil"
+	"github.com/go-spring/stdlib/flatten"
 )
 
 var providers = map[string]Provider{}
 
 func init() {
-	RegisterProvider("file", LoadFile)
+	Register("file", LoadFile)
 }
 
-// Provider provides configuration data from a specific source.
-type Provider func(source string) (*flatten.Storage, error)
+// Provider defines a function type that provides configuration data from a specific source.
+//
+// If access to a remote server is needed, the information required to access it is usually
+// placed in the source string or passed through environment variables.
+//
+// To support dynamic refresh, a version number field can be added and a regular Bean
+// can be registered to listen for changes. When the version changes, the configuration
+// can be updated.
+type Provider func(optional bool, source string) (*flatten.Storage, error)
 
-// RegisterProvider registers a Provider for a specific configuration source.
-func RegisterProvider(name string, p Provider) {
+// Register registers a Provider for a specific configuration source type.
+func Register(name string, p Provider) {
 	providers[name] = p
 }
 
-// Load loads a configuration source and returns its content as a map.
+// Load loads a configuration source and returns its content as a flattened Storage.
 func Load(source string) (*flatten.Storage, error) {
-	name := "file"
-	if i := strings.Index(source, ":"); i > 0 {
-		name = source[:i]
-		source = source[i+1:]
+	// For example, a spring.config.import value of optional:file:./myconfig.properties
+	// allows your application to start, even if the myconfig.properties file is missing.
+
+	var (
+		provider string
+		optional bool
+	)
+
+	// Parse the source string with up to 3 parts: optional, provider type, and path
+	if ss := strings.SplitN(source, ":", 3); len(ss) == 3 {
+		optional = ss[0] == "optional"
+		provider = ss[1]
+		source = ss[2]
+	} else if len(ss) == 2 {
+		provider = ss[0]
+		source = ss[1]
+	} else if len(ss) == 1 {
+		provider = "file"
+		source = ss[0]
+	} else {
+		err := errutil.Explain(nil, "invalid config source %s", source)
+		return nil, errutil.Explain(err, "read config %s error", source)
 	}
-	p, ok := providers[name]
+
+	p, ok := providers[provider]
 	if !ok {
-		err := util.FormatError(nil, "unsupported provider type %s", name)
-		return nil, util.FormatError(err, "read config %s error", source)
+		err := errutil.Explain(nil, "unsupported provider type %s", provider)
+		return nil, errutil.Explain(err, "read config %s error", source)
 	}
-	return p(source)
+	return p(optional, source)
 }
 
-// LoadFile loads a file and returns its content as a map.
-func LoadFile(source string) (*flatten.Storage, error) {
+// LoadFile loads a configuration file and returns its content as a flattened Storage.
+// If the file does not exist and optional is true, it returns nil without error.
+func LoadFile(optional bool, source string) (*flatten.Storage, error) {
 	m, err := reader.ReadFile(source)
 	if err != nil {
+		if os.IsNotExist(err) && optional {
+			return nil, nil
+		}
 		return nil, err
 	}
 	s := flatten.NewStorage()

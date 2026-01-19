@@ -121,13 +121,12 @@ package conf
 import (
 	"reflect"
 	"runtime"
-	"strings"
 	"time"
 
-	"github.com/go-spring/spring-base/util"
 	"github.com/go-spring/spring-core/conf/provider"
 	"github.com/go-spring/spring-core/conf/reader"
-	"github.com/lvan100/golib/flatten"
+	"github.com/go-spring/stdlib/errutil"
+	"github.com/go-spring/stdlib/flatten"
 	"github.com/spf13/cast"
 )
 
@@ -137,34 +136,18 @@ var (
 )
 
 func init() {
-
-	// time.Time
-	RegisterConverter(func(s string) (time.Time, error) {
-		v, err := cast.ToTimeE(strings.TrimSpace(s))
-		if err != nil {
-			return time.Time{}, util.FormatError(err, "invalid time format: %s", s)
-		}
-		return v, nil
-	})
-
-	// time.Duration
-	RegisterConverter(func(s string) (time.Duration, error) {
-		v, err := time.ParseDuration(strings.TrimSpace(s))
-		if err != nil {
-			return time.Duration(0), util.FormatError(err, "invalid duration format: %s", s)
-		}
-		return v, nil
-	})
+	RegisterConverter(func(s string) (time.Time, error) { return cast.ToTimeE(s) })
+	RegisterConverter(func(s string) (time.Duration, error) { return time.ParseDuration(s) })
 }
 
 // RegisterReader registers its Reader for some kind of file extension.
 func RegisterReader(r reader.Reader, ext ...string) {
-	reader.RegisterReader(r, ext...)
+	reader.Register(r, ext...)
 }
 
 // RegisterProvider registers a Provider for a specific configuration source.
 func RegisterProvider(name string, p provider.Provider) {
-	provider.RegisterProvider(name, p)
+	provider.Register(name, p)
 }
 
 // Splitter splits a string into a slice of strings using custom logic.
@@ -193,6 +176,8 @@ type Properties interface {
 	Keys() []string
 	// SubKeys returns the sorted sub-keys of a given key.
 	SubKeys(key string) ([]string, error)
+	// SubMap returns the sub-map of a given key.
+	SubMap(key string) (map[string]string, error)
 	// Has checks whether a key exists.
 	Has(key string) bool
 	// Get returns the value for a given key, with an optional default.
@@ -246,9 +231,7 @@ func Load(source string) (*MutableProperties, error) {
 func Map(data map[string]any) *MutableProperties {
 	p := New()
 	_, file, _, _ := runtime.Caller(1)
-	if err := p.MergeMap(data, file); err != nil {
-		return nil // 这里理论上不会产生错误
-	}
+	_ = p.MergeMap(data, file)
 	return p
 }
 
@@ -277,7 +260,7 @@ func (p *MutableProperties) Bind(i any, tag ...string) error {
 		default:
 			v = reflect.ValueOf(i)
 			if v.Kind() != reflect.Ptr {
-				return util.FormatError(nil, "should be a pointer but %T", i)
+				return errutil.Explain(nil, "should be a pointer but %T", i)
 			}
 			v = v.Elem()
 		}
@@ -297,7 +280,7 @@ func (p *MutableProperties) Bind(i any, tag ...string) error {
 	var param BindParam
 	err := param.BindTag(s, "")
 	if err != nil {
-		return util.FormatError(err, "bind tag '%s' error", s)
+		return errutil.Explain(err, "bind tag '%s' error", s)
 	}
 	param.Path = typeName
 	return BindValue(p, v, t, param, nil)
