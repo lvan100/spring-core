@@ -55,7 +55,6 @@ type AppStarter struct {
 // Configure sets the configuration function that will be applied to the application
 // before it starts. It returns the AppStarter instance for chaining.
 func Configure(cfg func(App)) *AppStarter {
-	started = true
 	return &AppStarter{app: gs_app.NewApp(), cfg: cfg}
 }
 
@@ -63,6 +62,8 @@ func Configure(cfg func(App)) *AppStarter {
 // applies the configuration function if provided, and starts the underlying gs_app.App.
 // Returns an error if the application fails to start.
 func (s *AppStarter) Start() error {
+	started = true
+
 	// Print banner
 	printBanner()
 
@@ -84,6 +85,7 @@ func (s *AppStarter) Start() error {
 // Stop triggers a graceful shutdown of the application and waits
 // until all resources and goroutines have completed.
 func (s *AppStarter) Stop() {
+	started = false
 	s.app.ShutDown()
 	s.app.WaitForShutdown()
 }
