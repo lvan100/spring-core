@@ -52,19 +52,11 @@ type AppStarter struct {
 	cfg func(App)
 }
 
-// NewApp creates a new AppStarter instance.
-func NewApp() *AppStarter {
-	started = true
-	return &AppStarter{
-		app: gs_app.NewApp(),
-	}
-}
-
 // Configure sets the configuration function that will be applied to the application
 // before it starts. It returns the AppStarter instance for chaining.
-func (s *AppStarter) Configure(f func(App)) *AppStarter {
-	s.cfg = f
-	return s
+func Configure(cfg func(App)) *AppStarter {
+	started = true
+	return &AppStarter{app: gs_app.NewApp(), cfg: cfg}
 }
 
 // Start initializes and starts the application. It prints the banner,
@@ -98,7 +90,7 @@ func (s *AppStarter) Stop() {
 
 // Run creates and starts a new application using default settings.
 func Run() error {
-	return NewApp().Run()
+	return Configure(nil).Run()
 }
 
 // Run starts the application, applies configuration, and waits for
@@ -133,7 +125,7 @@ func (s *AppStarter) Run() error {
 
 // RunTest runs a test function using a new application instance.
 func RunTest(t *testing.T, f any) {
-	NewApp().RunTest(t, f)
+	Configure(nil).RunTest(t, f)
 }
 
 // RunTest runs a user-defined test function with a provided test object.
