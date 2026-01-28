@@ -176,8 +176,8 @@ type (
 // The optional args are used to bind parameters for the constructor or to
 // provide explicit injection values.
 func Provide(objOrCtor any, args ...Arg) *gs_bean.BeanDefinition {
-	if started {
-		panic("gs.Provide can only be called before the application is started")
+	if inited {
+		panic("gs.Provide can only be called in init function")
 	}
 	b := gs_bean.NewBean(objOrCtor, args...)
 	gs_init.AddBean(b)
@@ -190,8 +190,8 @@ type ModuleFunc = gs_init.ModuleFunc
 // Module registers a configuration module that is conditionally activated
 // based on property values. 全局函数。
 func Module(conditions []ConditionOnProperty, fn ModuleFunc) {
-	if started {
-		panic("gs.Module can only be called before the application is started")
+	if inited {
+		panic("gs.Module can only be called in init function")
 	}
 	gs_init.AddModule(conditions, fn)
 }
@@ -199,8 +199,8 @@ func Module(conditions []ConditionOnProperty, fn ModuleFunc) {
 // Group registers a set of beans based on a configuration property map. 全局函数。
 // Each map entry spawns a bean constructed via fn and optionally destroyed via d.
 func Group[T any, R any](tag string, fn func(c T) (R, error), d func(R) error) {
-	if started {
-		panic("gs.Group can only be called before the application is started")
+	if inited {
+		panic("gs.Group can only be called in init function")
 	}
 	key := strings.TrimSuffix(strings.TrimPrefix(tag, "${"), "}")
 	gs_init.AddModule([]ConditionOnProperty{

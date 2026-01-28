@@ -32,8 +32,8 @@ import (
 	"github.com/go-spring/stdlib/goutil"
 )
 
-// started indicates whether the application has started.
-var started bool
+// inited indicates whether the application has been initialized.
+var inited bool
 
 // App defines the interface for a Go-Spring application instance.
 // It allows setting properties and providing beans to the IoC container.
@@ -55,6 +55,7 @@ type AppStarter struct {
 // Configure sets the configuration function that will be applied to the application
 // before it starts. It returns the AppStarter instance for chaining.
 func Configure(cfg func(App)) *AppStarter {
+	inited = true
 	return &AppStarter{app: gs_app.NewApp(), cfg: cfg}
 }
 
@@ -62,7 +63,6 @@ func Configure(cfg func(App)) *AppStarter {
 // applies the configuration function if provided, and starts the underlying gs_app.App.
 // Returns an error if the application fails to start.
 func (s *AppStarter) Start() error {
-	started = true
 
 	// Print banner
 	printBanner()
@@ -85,7 +85,6 @@ func (s *AppStarter) Start() error {
 // Stop triggers a graceful shutdown of the application and waits
 // until all resources and goroutines have completed.
 func (s *AppStarter) Stop() {
-	started = false
 	s.app.ShutDown()
 	s.app.WaitForShutdown()
 }
