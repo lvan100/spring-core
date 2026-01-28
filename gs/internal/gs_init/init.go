@@ -20,6 +20,7 @@
 package gs_init
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/go-spring/spring-core/conf"
@@ -48,6 +49,7 @@ type ModuleFunc func(r BeanProvider, p conf.Properties) error
 type Module struct {
 	ModuleFunc ModuleFunc
 	Condition  gs.Condition
+	FileLine   string
 }
 
 // Modules returns all registered modules.
@@ -75,7 +77,8 @@ func AddBean(bean *gs_bean.BeanDefinition) {
 
 // AddModule registers a new module function along with its activation
 // conditions. The module will only be applied if the conditions satisfied.
-func AddModule(conditions []gs_cond.ConditionOnProperty, fn ModuleFunc) {
+func AddModule(conditions []gs_cond.ConditionOnProperty,
+	fn ModuleFunc, file string, line int) {
 	var arr []gs.Condition
 	for _, cond := range conditions {
 		arr = append(arr, cond)
@@ -83,6 +86,7 @@ func AddModule(conditions []gs_cond.ConditionOnProperty, fn ModuleFunc) {
 	modules = append(modules, Module{
 		ModuleFunc: fn,
 		Condition:  gs_cond.And(arr...),
+		FileLine:   fmt.Sprintf("%s:%d", file, line),
 	})
 }
 

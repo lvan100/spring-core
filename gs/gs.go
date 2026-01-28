@@ -18,6 +18,7 @@ package gs
 
 import (
 	"reflect"
+	"runtime"
 	"strings"
 
 	"github.com/go-spring/spring-core/conf"
@@ -193,7 +194,8 @@ func Module(conditions []ConditionOnProperty, fn ModuleFunc) {
 	if inited {
 		panic("gs.Module can only be called in init function")
 	}
-	gs_init.AddModule(conditions, fn)
+	_, file, line, _ := runtime.Caller(1)
+	gs_init.AddModule(conditions, fn, file, line)
 }
 
 // Group registers a set of beans based on a configuration property map. 全局函数。
@@ -202,6 +204,7 @@ func Group[T any, R any](tag string, fn func(c T) (R, error), d func(R) error) {
 	if inited {
 		panic("gs.Group can only be called in init function")
 	}
+	_, file, line, _ := runtime.Caller(1)
 	key := strings.TrimSuffix(strings.TrimPrefix(tag, "${"), "}")
 	gs_init.AddModule([]ConditionOnProperty{
 		OnProperty(key),
@@ -211,11 +214,12 @@ func Group[T any, R any](tag string, fn func(c T) (R, error), d func(R) error) {
 			return err
 		}
 		for name, c := range m {
-			b := r.Provide(fn, ValueArg(c)).Name(name).Caller(2)
+			b := r.Provide(fn, ValueArg(c)).Name(name)
 			if d != nil {
 				b.Destroy(d)
 			}
+			b.SetFileLine(file, line)
 		}
 		return nil
-	})
+	}, file, line)
 }
