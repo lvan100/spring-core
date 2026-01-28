@@ -36,12 +36,12 @@ const (
 	Website = "https://github.com/go-spring/"
 )
 
+// BeanID represents a selector for a bean.
+type BeanID = gs.BeanID
+
 // Dync is a generic alias for a dynamic configuration value.
 // It represents a property that can change at runtime.
 type Dync[T any] = gs_dync.Value[T]
-
-// BeanID represents a selector for a bean.
-type BeanID = gs.BeanID
 
 // As returns the [reflect.Type] for a given interface type T.
 func As[T any]() reflect.Type {
