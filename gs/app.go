@@ -35,8 +35,9 @@ import (
 // inited indicates whether the application has been initialized.
 var inited bool
 
-// App defines the interface for a Go-Spring application instance.
-// It allows setting properties and providing beans to the IoC container.
+// App defines the configuration interface of a Go-Spring application.
+// Methods on App are only valid during application configuration
+// and must not be called after the application has started.
 type App interface {
 	// Property sets a key-value property in the application configuration.
 	Property(key string, val string)
@@ -52,15 +53,15 @@ type AppStarter struct {
 	cfg func(App)
 }
 
-// Configure sets the configuration function that will be applied to the application
-// before it starts. It returns the AppStarter instance for chaining.
+// Configure creates a new application and registers a configuration
+// function that will be applied before the application starts.
 func Configure(cfg func(App)) *AppStarter {
 	inited = true
 	return &AppStarter{app: gs_app.NewApp(), cfg: cfg}
 }
 
-// Start initializes and starts the application. It prints the banner,
-// applies the configuration function if provided, and starts the underlying gs_app.App.
+// Start starts the application lifecycle by printing the banner,
+// applying the configuration function, and starting the underlying gs_app.App.
 // Returns an error if the application fails to start.
 func (s *AppStarter) Start() error {
 
@@ -83,7 +84,7 @@ func (s *AppStarter) Start() error {
 }
 
 // Stop triggers a graceful shutdown of the application and waits
-// until all resources and goroutines have completed.
+// for the application shutdown process to complete.
 func (s *AppStarter) Stop() {
 	s.app.ShutDown()
 	s.app.WaitForShutdown()
@@ -119,6 +120,9 @@ func (s *AppStarter) Run() error {
 }
 
 // RunTest runs a test function using a new application instance.
+// The test function must accept exactly one argument, which must be
+// a pointer to a struct. The struct will be managed as a root bean
+// in the application context.
 func RunTest(t *testing.T, f any) {
 	Configure(nil).RunTest(t, f)
 }
