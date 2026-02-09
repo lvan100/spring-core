@@ -75,7 +75,7 @@ func (s *AppStarter) Start() error {
 	// Start application
 	if err := s.app.Start(); err != nil {
 		err = errutil.Stack(err, "start app failed")
-		log.Errorf(context.Background(), log.TagAppDef, "%s", err)
+		log.Errorf(s.app.Context(), log.TagAppDef, "%s", err)
 		return err
 	}
 
@@ -100,12 +100,6 @@ func Run() error {
 func (s *AppStarter) Run() error {
 	if err := s.Start(); err != nil {
 		return err
-	}
-
-	// If no servers are running, stop immediately
-	if len(s.app.Servers) == 0 {
-		s.Stop()
-		return nil
 	}
 
 	// Listen for termination signals in a separate goroutine
