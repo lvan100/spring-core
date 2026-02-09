@@ -845,7 +845,7 @@ func (s *Stack) getSortedDestroyers() []func() {
 
 	// Perform a topological sort to respect dependencies
 	// (e.g. a bean must be destroyed after the beans it depends on)
-	destroyers, _ = gs_util.TripleSort(destroyers, getBeforeDestroyers)
+	destroyers, _ = gs_util.TopologicalSort(destroyers, getBeforeDestroyers)
 
 	// Convert the sorted destroyers into a slice of executable cleanup functions
 	var ret []func()
