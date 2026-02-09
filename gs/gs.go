@@ -193,7 +193,7 @@ func Provide(objOrCtor any, args ...Arg) *gs_bean.BeanDefinition {
 type ModuleFunc = gs_init.ModuleFunc
 
 // Module registers a configuration module that is conditionally activated
-// based on property values. 全局函数。
+// based on property values.
 func Module(conditions []ConditionOnProperty, fn ModuleFunc) {
 	if inited {
 		panic("gs.Module can only be called in init function")
