@@ -33,7 +33,7 @@ func init() {
 	}, func(r BeanProvider, p conf.Properties) error {
 
 		// Register the default HTTP multiplexer (http.ServeMux) as a bean
-		// if no other *HttpServeMux bean has been defined.
+		// only when no user-defined *HttpServeMux is present.
 		r.Provide(&HttpServeMux{http.DefaultServeMux}).
 			Condition(OnMissingBean[*HttpServeMux]())
 
@@ -45,7 +45,9 @@ func init() {
 	})
 }
 
-// HttpServeMux is a wrapper around http.ServeMux.
+// HttpServeMux is a lightweight wrapper around an http.Handler,
+// allowing the default http.ServeMux or a custom handler
+// to be injected into the HTTP server.
 type HttpServeMux struct {
 	http.Handler
 }
@@ -85,14 +87,15 @@ func NewSimpleHttpServer(h *HttpServeMux, cfg SimpleHttpServerConfig) *SimpleHtt
 		Addr:              cfg.Address,
 		Handler:           h.Handler,
 		ReadTimeout:       cfg.ReadTimeout,
-		WriteTimeout:      cfg.WriteTimeout,
 		ReadHeaderTimeout: cfg.HeaderTimeout,
+		WriteTimeout:      cfg.WriteTimeout,
 		IdleTimeout:       cfg.IdleTimeout,
 	}}
 }
 
 // Run starts the HTTP server and blocks until it is stopped.
-// It waits for the given ReadySignal to be triggered before accepting traffic.
+// It listens on the configured address immediately, but waits
+// for the given ReadySignal before accepting traffic.
 func (s *SimpleHttpServer) Run(ctx context.Context, sig ReadySignal) error {
 	ln, err := net.Listen("tcp", s.svr.Addr)
 	if err != nil {
