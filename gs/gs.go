@@ -43,7 +43,8 @@ type BeanID = gs.BeanID
 // It represents a property that can change at runtime.
 type Dync[T any] = gs_dync.Value[T]
 
-// As returns the [reflect.Type] for a given interface type T.
+// As returns the [reflect.Type] of an interface T.
+// T is expected to be an interface type.
 func As[T any]() reflect.Type {
 	return gs.As[T]()
 }
@@ -133,6 +134,7 @@ func OnSingleBean[T any](name ...string) Condition {
 
 // RegisterExpressFunc registers a custom expression function
 // that can be used inside conditional expressions.
+// It should be called during application initialization.
 func RegisterExpressFunc(name string, fn any) {
 	gs_cond.RegisterExpressFunc(name, fn)
 }
@@ -172,7 +174,9 @@ type (
 	BeanProvider = gs_init.BeanProvider
 )
 
-// Provide registers a bean definition. 全局函数。
+// Provide registers a global bean definition.
+// It must be called during package initialization (init phase).
+// Calling it after application configuration has started will panic.
 // It accepts either an existing instance or a constructor function.
 // The optional args are used to bind parameters for the constructor or to
 // provide explicit injection values.
@@ -203,6 +207,9 @@ func Module(conditions []ConditionOnProperty, fn ModuleFunc) {
 func Group[T any, R any](tag string, fn func(c T) (R, error), d func(R) error) {
 	if inited {
 		panic("gs.Group can only be called in init function")
+	}
+	if !strings.HasPrefix(tag, "${") || !strings.HasSuffix(tag, "}") {
+		panic("gs.Group tag must be in ${...} format")
 	}
 	_, file, line, _ := runtime.Caller(1)
 	key := strings.TrimSuffix(strings.TrimPrefix(tag, "${"), "}")
