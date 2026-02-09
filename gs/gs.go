@@ -202,8 +202,9 @@ func Module(conditions []ConditionOnProperty, fn ModuleFunc) {
 	gs_init.AddModule(conditions, fn, file, line)
 }
 
-// Group registers a set of beans based on a configuration property map. 全局函数。
+// Group registers a set of beans based on a configuration property map.
 // Each map entry spawns a bean constructed via fn and optionally destroyed via d.
+// The bean name is derived from the map key.
 func Group[T any, R any](tag string, fn func(c T) (R, error), d func(R) error) {
 	if inited {
 		panic("gs.Group can only be called in init function")
