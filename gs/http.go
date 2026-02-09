@@ -82,10 +82,12 @@ type SimpleHttpServer struct {
 // the provided HTTP handler and configuration.
 func NewSimpleHttpServer(h *HttpServeMux, cfg SimpleHttpServerConfig) *SimpleHttpServer {
 	return &SimpleHttpServer{svr: &http.Server{
-		Addr:         cfg.Address,
-		Handler:      h.Handler,
-		ReadTimeout:  cfg.ReadTimeout,
-		WriteTimeout: cfg.WriteTimeout,
+		Addr:              cfg.Address,
+		Handler:           h.Handler,
+		ReadTimeout:       cfg.ReadTimeout,
+		WriteTimeout:      cfg.WriteTimeout,
+		ReadHeaderTimeout: cfg.HeaderTimeout,
+		IdleTimeout:       cfg.IdleTimeout,
 	}}
 }
 

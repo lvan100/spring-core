@@ -63,8 +63,14 @@ type ContextAware struct {
 
 // ConfigRefresher is an interface for components that need to refresh
 // application properties after configuration changes.
-type ConfigRefresher interface {
-	RefreshProperties() error
+type ConfigRefresher struct {
+	app *App
+}
+
+// RefreshProperties refreshes application properties and
+// propagates the changes to the IoC container.
+func (c *ConfigRefresher) RefreshProperties() error {
+	return c.app.RefreshProperties()
 }
 
 // App represents the core application, managing its lifecycle,
@@ -159,12 +165,12 @@ func (app *App) Start() error {
 		return err
 	}
 
-	// Provide ContextAware for beans to access application context
 	app.c.Provide(&ContextAware{app.ctx})
+	app.c.Provide(&ConfigRefresher{app})
 
 	// Root beans for container refresh
 	roots := []*gs_bean.BeanDefinition{
-		app.c.Provide(app).Export(gs.As[ConfigRefresher]()),
+		app.c.Provide(app),
 	}
 
 	// Load and refresh application properties
