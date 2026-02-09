@@ -81,7 +81,7 @@ type App struct {
 	Runners []Runner `autowire:"${spring.app.runners:=?}"`
 	Servers []Server `autowire:"${spring.app.servers:=?}"`
 
-	Tester any `autowire:"__tester__?"` // Root bean for testing mode
+	_ any `autowire:"__root__?"` // Special root bean
 }
 
 // NewApp creates a new App instance with an initialized root context.

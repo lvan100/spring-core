@@ -132,7 +132,7 @@ func (s *AppStarter) RunTest(t *testing.T, f any) {
 
 	// Provide the test object as a bean
 	s.app.Provide(obj.Interface()).
-		Name("__tester__").
+		Name("__root__").
 		Export(gs.As[any]())
 
 	// Start the application
