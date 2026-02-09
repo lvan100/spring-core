@@ -43,7 +43,7 @@ func TopologicalSort(sorting *list.List, fn GetBeforeItems) (*list.List, error) 
 	// Process items in the toSort list until all items are sorted.
 	for toSort.Len() > 0 {
 		// Recursively sort the dependency chain starting with the next item in `toSort`.
-		err := tripleSortByAfter(sorting, toSort, sorted, processing, nil, fn)
+		err := dfsTopoVisit(sorting, toSort, sorted, processing, nil, fn)
 		if err != nil {
 			return nil, err
 		}
@@ -62,7 +62,7 @@ func searchInList(l *list.List, v any) *list.Element {
 	return nil
 }
 
-// tripleSortByAfter recursively processes an item's dependency chain and adds it to the sorted list.
+// dfsTopoVisit recursively processes the current item and its dependencies using DFS.
 // Parameters:
 // - sorting: The original list of items.
 // - toSort: The list of items to be sorted.
@@ -70,7 +70,7 @@ func searchInList(l *list.List, v any) *list.Element {
 // - processing: The list of items currently being processed (to detect cycles).
 // - current: The current item being processed (nil for the first item).
 // - fn: A function that retrieves the list of items that must appear before the current item.
-func tripleSortByAfter(sorting *list.List, toSort *list.List, sorted *list.List,
+func dfsTopoVisit(sorting *list.List, toSort *list.List, sorted *list.List,
 	processing *list.List, current any, fn GetBeforeItems) error {
 
 	// If no current item is specified, remove and process the first item in the `toSort` list.
@@ -102,7 +102,7 @@ func tripleSortByAfter(sorting *list.List, toSort *list.List, sorted *list.List,
 
 		// If the dependency is not sorted but still needs sorting, process it recursively.
 		if !inSorted && inToSort {
-			err := tripleSortByAfter(sorting, toSort, sorted, processing, c, fn)
+			err := dfsTopoVisit(sorting, toSort, sorted, processing, c, fn)
 			if err != nil {
 				return err
 			}
