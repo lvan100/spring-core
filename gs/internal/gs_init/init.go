@@ -14,9 +14,6 @@
  * limitations under the License.
  */
 
-// Package gs_init provides registration and management of modules
-// and beans for the Go-Spring IoC container. It allows conditional
-// module registration and keeps track of all registered beans.
 package gs_init
 
 import (
@@ -58,7 +55,8 @@ func Modules() []Module {
 }
 
 // Beans returns all registered beans.
-// In test mode, it returns cloned instances to avoid mutating global state.
+// In test mode, it returns cloned BeanDefinitions
+// to avoid mutating shared bean definitions.
 func Beans() []*gs_bean.BeanDefinition {
 	if !testing.Testing() {
 		return beans
@@ -76,7 +74,7 @@ func AddBean(bean *gs_bean.BeanDefinition) {
 }
 
 // AddModule registers a new module function along with its activation
-// conditions. The module will only be applied if the conditions satisfied.
+// conditions. The module will only be applied if the conditions are satisfied.
 func AddModule(c gs_cond.PropertyCondition, fn ModuleFunc, file string, line int) {
 	modules = append(modules, Module{
 		ModuleFunc: fn,
