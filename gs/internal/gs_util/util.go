@@ -18,7 +18,6 @@ package gs_util
 
 import (
 	"container/list"
-	"fmt"
 
 	"github.com/go-spring/stdlib/errutil"
 )
@@ -90,10 +89,7 @@ func dfsTopoVisit(sorting *list.List, toSort *list.List, sorted *list.List,
 
 		// Detect circular dependencies by checking if `c` is already being processed.
 		if searchInList(processing, c) != nil {
-			// Build cycle path for better error reporting
-			cyclePath := buildCyclePath(processing, c)
-			return errutil.Explain(nil, "found sorting cycle: %s -> %v",
-				joinCyclePath(cyclePath), c)
+			return errutil.Explain(nil, "found sorting cycle")
 		}
 
 		// Check if the dependency `c` is already sorted or still in the toSort list.
@@ -122,39 +118,4 @@ func dfsTopoVisit(sorting *list.List, toSort *list.List, sorted *list.List,
 	// Add the current item to the sorted list to mark it as fully processed.
 	sorted.PushBack(current)
 	return nil
-}
-
-// buildCyclePath constructs a readable cycle path string for error reporting.
-// It extracts elements from the processing list starting from the cycle node.
-func buildCyclePath(processing *list.List, cycleNode any) []string {
-	var path []string
-	found := false
-
-	for e := processing.Front(); e != nil; e = e.Next() {
-		if e.Value == cycleNode {
-			found = true
-		}
-		if found {
-			path = append(path, fmt.Sprintf("%v", e.Value))
-		}
-	}
-
-	// Add the cycle node at the end to complete the circle
-	if len(path) > 0 {
-		path = append(path, fmt.Sprintf("%v", cycleNode))
-	}
-
-	return path
-}
-
-// joinCyclePath joins cycle path elements with " -> " separator.
-func joinCyclePath(path []string) string {
-	if len(path) == 0 {
-		return ""
-	}
-	result := path[0]
-	for i := 1; i < len(path); i++ {
-		result += " -> " + path[i]
-	}
-	return result
 }
