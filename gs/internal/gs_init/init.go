@@ -77,15 +77,10 @@ func AddBean(bean *gs_bean.BeanDefinition) {
 
 // AddModule registers a new module function along with its activation
 // conditions. The module will only be applied if the conditions satisfied.
-func AddModule(conditions []gs_cond.ConditionOnProperty,
-	fn ModuleFunc, file string, line int) {
-	var arr []gs.Condition
-	for _, cond := range conditions {
-		arr = append(arr, cond)
-	}
+func AddModule(c gs_cond.PropertyCondition, fn ModuleFunc, file string, line int) {
 	modules = append(modules, Module{
 		ModuleFunc: fn,
-		Condition:  gs_cond.And(arr...),
+		Condition:  c,
 		FileLine:   fmt.Sprintf("%s:%d", file, line),
 	})
 }

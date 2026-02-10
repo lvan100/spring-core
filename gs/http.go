@@ -28,9 +28,9 @@ import (
 )
 
 func init() {
-	Module([]ConditionOnProperty{
-		OnProperty("http.server.enable").HavingValue("true").MatchIfMissing(),
-	}, func(r BeanProvider, p conf.Properties) error {
+	// Register a module for HTTP server.
+	enableHttpServer := OnProperty("http.server.enable").HavingValue("true").MatchIfMissing()
+	Module(enableHttpServer, func(r BeanProvider, p conf.Properties) error {
 
 		// Register the default HTTP multiplexer (http.ServeMux) as a bean
 		// only when no user-defined *HttpServeMux is present.

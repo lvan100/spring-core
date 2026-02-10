@@ -86,8 +86,8 @@ type (
 	// ConditionContext provides the evaluation context for a Condition.
 	ConditionContext = gs.ConditionContext
 
-	// ConditionOnProperty is a convenience wrapper for property-based conditions.
-	ConditionOnProperty = gs_cond.ConditionOnProperty
+	// PropertyCondition is a convenience wrapper for property-based conditions.
+	PropertyCondition = gs_cond.PropertyCondition
 )
 
 // OnOnce wraps the given conditions so they are evaluated only once.
@@ -113,7 +113,7 @@ func OnFunc(fn func(ctx ConditionContext) (bool, error)) Condition {
 }
 
 // OnProperty creates a property-based condition.
-func OnProperty(name string) ConditionOnProperty {
+func OnProperty(name string) PropertyCondition {
 	return gs_cond.OnProperty(name)
 }
 
@@ -194,12 +194,12 @@ type ModuleFunc = gs_init.ModuleFunc
 
 // Module registers a configuration module that is conditionally activated
 // based on property values.
-func Module(conditions []ConditionOnProperty, fn ModuleFunc) {
+func Module(c PropertyCondition, fn ModuleFunc) {
 	if inited {
 		panic("gs.Module can only be called in init function")
 	}
 	_, file, line, _ := runtime.Caller(1)
-	gs_init.AddModule(conditions, fn, file, line)
+	gs_init.AddModule(c, fn, file, line)
 }
 
 // Group registers a set of beans based on a configuration property map.
@@ -214,9 +214,7 @@ func Group[T any, R any](tag string, fn func(c T) (R, error), d func(R) error) {
 	}
 	_, file, line, _ := runtime.Caller(1)
 	key := strings.TrimSuffix(strings.TrimPrefix(tag, "${"), "}")
-	gs_init.AddModule([]ConditionOnProperty{
-		OnProperty(key),
-	}, func(r BeanProvider, p conf.Properties) error {
+	gs_init.AddModule(OnProperty(key), func(r BeanProvider, p conf.Properties) error {
 		var m map[string]T
 		if err := p.Bind(&m, "${"+key+"}"); err != nil {
 			return err
