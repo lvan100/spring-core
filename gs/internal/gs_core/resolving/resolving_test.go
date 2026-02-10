@@ -117,7 +117,7 @@ func TestResolving(t *testing.T) {
 		defer func() { gs_init.Clear() }()
 		gs_init.AddModule(nil, func(r gs_init.BeanProvider, p conf.Properties) error {
 			return errutil.Explain(nil, "module error")
-		})
+		}, "", 0)
 
 		r := New()
 		err := r.Refresh(conf.New())
@@ -218,7 +218,7 @@ func TestResolving(t *testing.T) {
 					Name(name)
 			}
 			return nil
-		})
+		}, "", 0)
 
 		r := New()
 		{
