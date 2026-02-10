@@ -108,6 +108,6 @@ func TestTopologicalSort(t *testing.T) {
 		}
 		sorting := listutil.ListOf("A", "B", "C")
 		_, err := TopologicalSort(sorting, getBefore)
-		assert.Error(t, err).Matches("found sorting cycle: .* -> A")
+		assert.Error(t, err).Matches("dependency cycle detected")
 	})
 }
