@@ -182,6 +182,8 @@ type Properties interface {
 	Has(key string) bool
 	// Get returns the value for a given key, with an optional default.
 	Get(key string, def ...string) string
+	// Lookup returns the value for a given key, and whether it exists.
+	Lookup(key string) (string, bool)
 	// Resolve resolves placeholders inside a string (e.g. ${key:=default}).
 	Resolve(s string) (string, error)
 	// Bind binds property values into a target object (struct, map, slice, or primitive).

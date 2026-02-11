@@ -332,22 +332,18 @@ func getSlice(p Properties, et reflect.Type, param BindParam) (Properties, error
 	}
 
 	// case 2: property is a single string -> split into slice
-	var strVal string
-	{
-		if p.Has(param.Key) {
-			strVal = p.Get(param.Key)
-		} else {
-			if !param.Tag.HasDef {
-				return nil, errutil.Explain(nil, "property %q %w", param.Key, ErrNotExist)
-			}
-			if param.Tag.Def == "" {
-				return nil, nil
-			}
-			if !typeutil.IsPrimitiveValueType(et) && converters[et] == nil {
-				return nil, errutil.Explain(nil, "can't find converter for %s", et.String())
-			}
-			strVal = param.Tag.Def
+	strVal, ok := p.Lookup(param.Key)
+	if !ok {
+		if !param.Tag.HasDef {
+			return nil, errutil.Explain(nil, "property %q %w", param.Key, ErrNotExist)
 		}
+		if param.Tag.Def == "" {
+			return nil, nil
+		}
+		if !typeutil.IsPrimitiveValueType(et) && converters[et] == nil {
+			return nil, errutil.Explain(nil, "can't find converter for %s", et.String())
+		}
+		strVal = param.Tag.Def
 	}
 	if strVal == "" {
 		return nil, nil
@@ -527,9 +523,7 @@ func bindStruct(p Properties, v reflect.Value, t reflect.Type, param BindParam, 
 //
 //	resolve(url) -> "http://localhost:8080"
 func resolve(p Properties, param BindParam) (string, error) {
-	const defVal = "@@def@@"
-	val := p.Get(param.Key, defVal)
-	if val != defVal {
+	if val, ok := p.Lookup(param.Key); ok {
 		return resolveString(p, val)
 	}
 	if p.Has(param.Key) {
