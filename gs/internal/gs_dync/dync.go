@@ -46,7 +46,7 @@ import (
 
 // refreshable represents an object that can be dynamically refreshed.
 type refreshable interface {
-	onRefresh(prop conf.Properties, param conf.BindParam) error
+	onRefresh(prop conf.Properties, param conf.BindParam, commit bool) error
 }
 
 // Value represents a thread-safe object that can dynamically refresh its value.
@@ -66,14 +66,15 @@ func (r *Value[T]) Value() T {
 }
 
 // onRefresh updates the stored value with new properties and notifies listeners.
-func (r *Value[T]) onRefresh(prop conf.Properties, param conf.BindParam) error {
+func (r *Value[T]) onRefresh(prop conf.Properties, param conf.BindParam, commit bool) error {
 	t := reflect.TypeFor[T]()
 	v := reflect.New(t).Elem()
-	err := conf.BindValue(prop, v, t, param, nil)
-	if err != nil {
+	if err := conf.BindValue(prop, v, t, param, nil); err != nil {
 		return err
 	}
-	r.v.Store(v.Interface())
+	if commit {
+		r.v.Store(v.Interface())
+	}
 	return nil
 }
 
@@ -217,7 +218,7 @@ func (e *Errors) Error() string {
 func (p *Properties) refreshObjects(objects []*refreshObject) error {
 	ret := &Errors{}
 	for _, obj := range objects {
-		err := obj.target.onRefresh(p.prop, obj.param)
+		err := obj.target.onRefresh(p.prop, obj.param, true)
 		ret.Append(err)
 	}
 	if ret.Len() == 0 {
@@ -241,7 +242,7 @@ func (f *filter) Do(i any, param conf.BindParam) (bool, error) {
 		target: v,
 		param:  param,
 	})
-	return true, v.onRefresh(f.prop, param)
+	return true, v.onRefresh(f.prop, param, true)
 }
 
 // RefreshField refreshes a field of a bean, optionally registering it as refreshable.

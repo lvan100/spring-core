@@ -31,13 +31,13 @@ import (
 
 type MockPanicRefreshable struct{}
 
-func (m *MockPanicRefreshable) onRefresh(prop conf.Properties, param conf.BindParam) error {
+func (m *MockPanicRefreshable) onRefresh(prop conf.Properties, param conf.BindParam, commit bool) error {
 	panic("mock panic")
 }
 
 type MockErrorRefreshable struct{}
 
-func (m *MockErrorRefreshable) onRefresh(prop conf.Properties, param conf.BindParam) error {
+func (m *MockErrorRefreshable) onRefresh(prop conf.Properties, param conf.BindParam, commit bool) error {
 	return errutil.Explain(nil, "mock error")
 }
 
@@ -46,7 +46,7 @@ func TestValue(t *testing.T) {
 	assert.That(t, v.Value()).Equal(0)
 
 	refresh := func(prop conf.Properties) error {
-		return v.onRefresh(prop, conf.BindParam{Key: "key"})
+		return v.onRefresh(prop, conf.BindParam{Key: "key"}, true)
 	}
 
 	err := refresh(conf.Map(map[string]any{
@@ -80,6 +80,7 @@ func TestValue_DifferentTypes(t *testing.T) {
 		err := v.onRefresh(
 			conf.Map(map[string]any{"key": "hello"}),
 			conf.BindParam{Key: "key"},
+			true,
 		)
 		assert.That(t, err).Nil()
 		assert.That(t, v.Value()).Equal("hello")
@@ -90,6 +91,7 @@ func TestValue_DifferentTypes(t *testing.T) {
 		err := v.onRefresh(
 			conf.Map(map[string]any{"key": "true"}),
 			conf.BindParam{Key: "key"},
+			true,
 		)
 		assert.That(t, err).Nil()
 		assert.That(t, v.Value()).Equal(true)
@@ -100,6 +102,7 @@ func TestValue_DifferentTypes(t *testing.T) {
 		err := v.onRefresh(
 			conf.Map(map[string]any{"key": "3.14"}),
 			conf.BindParam{Key: "key"},
+			true,
 		)
 		assert.That(t, err).Nil()
 		assert.That(t, v.Value()).Equal(3.14)
@@ -110,6 +113,7 @@ func TestValue_DifferentTypes(t *testing.T) {
 		err := v.onRefresh(
 			conf.Map(map[string]any{"key": []any{1, 2, 3}}),
 			conf.BindParam{Key: "key"},
+			true,
 		)
 		assert.That(t, err).Nil()
 		assert.That(t, v.Value()).Equal([]int{1, 2, 3})
@@ -122,6 +126,7 @@ func TestValue_ConcurrentAccess(t *testing.T) {
 	err := v.onRefresh(
 		conf.Map(map[string]any{"key": "100"}),
 		conf.BindParam{Key: "key"},
+		true,
 	)
 	assert.That(t, err).Nil()
 	assert.That(t, v.Value()).Equal(100)
@@ -143,6 +148,7 @@ func TestValue_ConcurrentAccess(t *testing.T) {
 			err := v.onRefresh(
 				conf.Map(map[string]any{"key": fmt.Sprintf("%d", idx)}),
 				conf.BindParam{Key: "key"},
+				true,
 			)
 			assert.That(t, err).Nil()
 		}(i)
