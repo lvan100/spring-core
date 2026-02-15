@@ -60,10 +60,10 @@ func Configure(cfg func(App)) *AppStarter {
 	return &AppStarter{app: gs_app.NewApp(), cfg: cfg}
 }
 
-// Start starts the application lifecycle by printing the banner,
+// startApp starts the application lifecycle by printing the banner,
 // applying the configuration function, and starting the underlying gs_app.App.
 // Returns an error if the application fails to start.
-func (s *AppStarter) Start() error {
+func (s *AppStarter) startApp() error {
 
 	// Print banner
 	printBanner()
@@ -83,9 +83,9 @@ func (s *AppStarter) Start() error {
 	return nil
 }
 
-// Stop triggers a graceful shutdown of the application and waits
+// stopApp triggers a graceful shutdown of the application and waits
 // for the application shutdown process to complete.
-func (s *AppStarter) Stop() {
+func (s *AppStarter) stopApp() {
 	s.app.ShutDown()
 	s.app.WaitForShutdown()
 }
@@ -99,7 +99,7 @@ func Run() error {
 // termination signals (e.g., SIGTERM, Ctrl+C) to trigger a graceful shutdown.
 // If no servers are running, the application stops immediately.
 func (s *AppStarter) Run() error {
-	if err := s.Start(); err != nil {
+	if err := s.startApp(); err != nil {
 		return err
 	}
 
@@ -119,6 +119,24 @@ func (s *AppStarter) Run() error {
 	return nil
 }
 
+// RunAsync runs the application asynchronously and
+// returns a function to stop the application.
+func RunAsync(i any) (stop func(), err error) {
+	return Configure(nil).RunAsync(i)
+}
+
+// RunAsync runs the application asynchronously and
+// returns a function to stop the application.
+func (s *AppStarter) RunAsync(i any) (stop func(), err error) {
+
+	// Register the root bean
+	s.app.Provide(i).
+		Name("__root__").
+		Export(gs.As[any]())
+
+	return func() { s.stopApp() }, s.startApp()
+}
+
 // RunTest runs a test function using a new application instance.
 // The test function must accept exactly one argument, which must be
 // a pointer to a struct. The struct will be managed as a root bean
@@ -134,16 +152,11 @@ func (s *AppStarter) RunTest(t *testing.T, f any) {
 	ft := reflect.TypeOf(f)
 	obj := reflect.New(ft.In(0).Elem())
 
-	// Provide the test object as a bean
-	s.app.Provide(obj.Interface()).
-		Name("__root__").
-		Export(gs.As[any]())
-
-	// Start the application
-	if err := s.Start(); err != nil {
+	stop, err := s.RunAsync(obj.Interface())
+	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() { s.Stop() }()
+	defer func() { stop() }()
 
 	// Execute the test function
 	reflect.ValueOf(f).Call([]reflect.Value{obj})
