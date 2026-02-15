@@ -49,41 +49,8 @@ type refreshable interface {
 	onRefresh(prop conf.Properties, param conf.BindParam) error
 }
 
-// Listener holds a channel to receive notifications.
-type Listener struct {
-	C chan struct{}
-}
-
-// listeners maintains a collection of listeners that can be notified on value updates.
-type listeners struct {
-	m sync.Mutex
-	a []*Listener
-}
-
-// NewListener creates and registers a new listener.
-func (r *listeners) NewListener() *Listener {
-	r.m.Lock()
-	defer r.m.Unlock()
-	l := &Listener{C: make(chan struct{}, 1)}
-	r.a = append(r.a, l)
-	return l
-}
-
-// notifyAll sends a notification signal to all registered listeners.
-func (r *listeners) notifyAll() {
-	r.m.Lock()
-	defer r.m.Unlock()
-	for _, l := range r.a {
-		select {
-		case l.C <- struct{}{}:
-		default:
-		}
-	}
-}
-
 // Value represents a thread-safe object that can dynamically refresh its value.
 type Value[T any] struct {
-	listeners
 	v atomic.Value
 }
 
@@ -107,7 +74,6 @@ func (r *Value[T]) onRefresh(prop conf.Properties, param conf.BindParam) error {
 		return err
 	}
 	r.v.Store(v.Interface())
-	r.notifyAll()
 	return nil
 }
 

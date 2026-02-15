@@ -62,26 +62,11 @@ func TestValue(t *testing.T) {
 	}))
 	assert.Error(t, err).Matches("bind path= type=int error: property \"key\" isn't simple value")
 
-	var wg sync.WaitGroup
-	for i := range 5 {
-		n := i
-		wg.Go(func() {
-			l := v.NewListener()
-			if n == 4 {
-				return
-			}
-			<-l.C
-			assert.That(t, v.Value()).Equal(59)
-		})
-	}
-
 	time.Sleep(50 * time.Millisecond)
 	err = refresh(conf.Map(map[string]any{
 		"key": 59,
 	}))
 	assert.That(t, err).Nil()
-
-	wg.Wait()
 
 	b, err := json.Marshal(map[string]any{"key": &v})
 	assert.That(t, err).Nil()
@@ -163,36 +148,6 @@ func TestValue_ConcurrentAccess(t *testing.T) {
 		}(i)
 	}
 
-	wg.Wait()
-}
-
-func TestValue_Listener(t *testing.T) {
-	var v Value[int]
-
-	listeners := make([]*Listener, 5)
-	for i := range listeners {
-		listeners[i] = v.NewListener()
-	}
-
-	go func() {
-		err := v.onRefresh(
-			conf.Map(map[string]any{"key": "42"}),
-			conf.BindParam{Key: "key"},
-		)
-		assert.That(t, err).Nil()
-	}()
-
-	var wg sync.WaitGroup
-	for _, l := range listeners {
-		wg.Go(func() {
-			select {
-			case <-l.C:
-				assert.That(t, v.Value()).Equal(42)
-			case <-time.After(time.Second):
-				t.Errorf("timeout")
-			}
-		})
-	}
 	wg.Wait()
 }
 
