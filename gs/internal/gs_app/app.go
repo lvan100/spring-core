@@ -92,7 +92,7 @@ type App struct {
 
 // NewApp creates a new App instance with an initialized root context.
 func NewApp() *App {
-	ctx := context.WithValue(context.TODO(), "app", "")
+	ctx := context.WithValue(context.Background(), "app", "")
 	ctx, cancel := context.WithCancel(ctx)
 	return &App{
 		c:      gs_core.New(),
