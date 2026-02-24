@@ -57,12 +57,7 @@ type Value[T any] struct {
 // Value retrieves the current value stored in the object.
 // If no value is set, it returns the zero value for the type T.
 func (r *Value[T]) Value() T {
-	v, ok := r.v.Load().(T)
-	if !ok {
-		var zero T
-		return zero
-	}
-	return v
+	return r.v.Load().(T)
 }
 
 // onRefresh updates the stored value with new properties and notifies listeners.
@@ -182,7 +177,12 @@ func (p *Properties) refreshKeys(keys []string) (err error) {
 	if len(updateObjects) == 0 {
 		return nil
 	}
-	return p.refreshObjects(updateObjects)
+
+	// 首先预刷新所有动态值，校验通过之后进行提交
+	if err = p.refreshObjects(updateObjects, false); err != nil {
+		return err
+	}
+	return p.refreshObjects(updateObjects, true)
 }
 
 // Errors represents a collection of errors.
@@ -215,10 +215,10 @@ func (e *Errors) Error() string {
 }
 
 // refreshObjects refreshes all provided objects and aggregates errors.
-func (p *Properties) refreshObjects(objects []*refreshObject) error {
+func (p *Properties) refreshObjects(objects []*refreshObject, commit bool) error {
 	ret := &Errors{}
 	for _, obj := range objects {
-		err := obj.target.onRefresh(p.prop, obj.param, true)
+		err := obj.target.onRefresh(p.prop, obj.param, commit)
 		ret.Append(err)
 	}
 	if ret.Len() == 0 {
