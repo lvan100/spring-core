@@ -83,13 +83,6 @@ func (s *AppStarter) startApp() error {
 	return nil
 }
 
-// stopApp triggers a graceful shutdown of the application and waits
-// for the application shutdown process to complete.
-func (s *AppStarter) stopApp() {
-	s.app.ShutDown()
-	s.app.WaitForShutdown()
-}
-
 // Run creates and starts a new application using default settings.
 func Run() error {
 	return Configure(nil).Run()
@@ -134,7 +127,14 @@ func (s *AppStarter) RunAsync(i any) (stop func(), err error) {
 		Name("__root__").
 		Export(gs.As[any]())
 
-	return func() { s.stopApp() }, s.startApp()
+	if err = s.startApp(); err != nil {
+		return func() {}, err
+	}
+
+	return func() {
+		s.app.ShutDown()
+		s.app.WaitForShutdown()
+	}, nil
 }
 
 // RunTest runs a test function using a new application instance.
