@@ -57,7 +57,12 @@ type Value[T any] struct {
 // Value retrieves the current value stored in the object.
 // If no value is set, it returns the zero value for the type T.
 func (r *Value[T]) Value() T {
-	return r.v.Load().(T)
+	v, ok := r.v.Load().(T)
+	if !ok {
+		var zero T
+		return zero
+	}
+	return v
 }
 
 // onRefresh updates the stored value with new properties and notifies listeners.
