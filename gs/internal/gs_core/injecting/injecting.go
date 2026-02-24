@@ -623,7 +623,7 @@ func (c *Injector) getBeanValue(b *gs_bean.BeanDefinition, stack *Stack) (reflec
 func (c *Injector) wireBeanValue(v reflect.Value, t reflect.Type, stack *Stack) error {
 
 	// Dereference pointers to obtain the underlying struct
-	if v.Kind() == reflect.Ptr {
+	if v.Kind() == reflect.Pointer {
 		v = v.Elem()
 		t = t.Elem()
 	}

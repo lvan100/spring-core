@@ -18,7 +18,6 @@ package injecting
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"reflect"
 	"runtime"
@@ -111,22 +110,6 @@ func (s *Service) Destroy() {
 
 type Repository struct {
 	Addr gs_dync.Value[string] `value:"${addr:=127.0.0.1:5050}"`
-	stop chan struct{}
-}
-
-func (r *Repository) Init() {
-	r.stop = make(chan struct{})
-	go func() {
-		l := r.Addr.NewListener()
-		for {
-			select {
-			case <-l.C:
-				fmt.Println(r.Addr.Value())
-			case <-r.stop:
-				return
-			}
-		}
-	}()
 }
 
 func (r *Repository) GetAddr() string {
@@ -289,9 +272,7 @@ func TestInjecting(t *testing.T) {
 		beans := []*gs_bean.BeanDefinition{
 			objectBean(myFilter).Name("my_filter").Export(gs.As[Filter]()),
 			objectBean(&ReqFilter{}).Name("my_filter"),
-			objectBean(&Repository{}).InitMethod("Init").Destroy(func(r *Repository) {
-				r.stop <- struct{}{}
-			}),
+			objectBean(&Repository{}),
 			objectBean(&Controller{}).DependsOn(
 				gs.BeanIDFor[*Service](),
 			),

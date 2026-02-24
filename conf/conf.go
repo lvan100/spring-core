@@ -261,7 +261,7 @@ func (p *MutableProperties) Bind(i any, tag ...string) error {
 			v = refVal
 		default:
 			v = reflect.ValueOf(i)
-			if v.Kind() != reflect.Ptr {
+			if v.Kind() != reflect.Pointer {
 				return errutil.Explain(nil, "should be a pointer but %T", i)
 			}
 			v = v.Elem()

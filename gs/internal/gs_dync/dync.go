@@ -255,7 +255,7 @@ func (p *Properties) RefreshField(v reflect.Value, param conf.BindParam) error {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 	f := &filter{Properties: p}
-	if v.Kind() == reflect.Ptr {
+	if v.Kind() == reflect.Pointer {
 		ok, err := f.Do(v.Interface(), param)
 		if err != nil {
 			return err
