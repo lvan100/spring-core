@@ -327,7 +327,7 @@ func bindSlice(p Properties, v reflect.Value, t reflect.Type, param BindParam, f
 func getSlice(p Properties, et reflect.Type, param BindParam) (Properties, error) {
 
 	// case 1: properties already defined as list (e.g. key[0], key[1]...)
-	if p.Has(param.Key + "[0]") {
+	if p.Exists(param.Key + "[0]") {
 		return p, nil
 	}
 
@@ -335,7 +335,7 @@ func getSlice(p Properties, et reflect.Type, param BindParam) (Properties, error
 	strVal, ok := p.Lookup(param.Key)
 	if !ok {
 		if !param.Tag.HasDef {
-			return nil, errutil.Explain(nil, "property %q %w", param.Key, ErrNotExist)
+			return nil, errutil.Explain(nil, "property %q %s", param.Key, ErrNotExist)
 		}
 		if param.Tag.Def == "" {
 			return nil, nil
@@ -410,11 +410,11 @@ func bindMap(p Properties, v reflect.Value, t reflect.Type, param BindParam, fil
 	}
 
 	// ensure property exists
-	if !p.Has(param.Key) {
+	if !p.Exists(param.Key) {
 		if param.Tag.HasDef {
 			return nil
 		}
-		return errutil.Explain(nil, "property %q %w", param.Key, ErrNotExist)
+		return errutil.Explain(nil, "property %q %s", param.Key, ErrNotExist)
 	}
 
 	// fetch subkeys under the current key prefix
@@ -526,13 +526,13 @@ func resolve(p Properties, param BindParam) (string, error) {
 	if val, ok := p.Lookup(param.Key); ok {
 		return resolveString(p, val)
 	}
-	if p.Has(param.Key) {
+	if p.Exists(param.Key) {
 		return "", errutil.Explain(nil, "property %q isn't simple value", param.Key)
 	}
 	if param.Tag.HasDef {
 		return resolveString(p, param.Tag.Def)
 	}
-	return "", errutil.Explain(nil, "property %q %w", param.Key, ErrNotExist)
+	return "", errutil.Explain(nil, "property %q %s", param.Key, ErrNotExist)
 }
 
 // resolveString expands property references of the form ${key}

@@ -176,10 +176,10 @@ type Properties interface {
 	Keys() []string
 	// SubKeys returns the sorted sub-keys of a given key.
 	SubKeys(key string) ([]string, error)
-	// SubMap returns the sub-map of a given key.
-	SubMap(key string) (map[string]string, error)
-	// Has checks whether a key exists.
-	Has(key string) bool
+	// SubTree returns the sub-map of a given key.
+	SubTree(key string) (map[string]string, error)
+	// Exists checks whether a key exists.
+	Exists(key string) bool
 	// Get returns the value for a given key, with an optional default.
 	Get(key string, def ...string) string
 	// Lookup returns the value for a given key, and whether it exists.

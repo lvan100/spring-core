@@ -124,8 +124,8 @@ func TestProperties_CopyTo(t *testing.T) {
 			"a.b.c[0]",
 		})
 
-		assert.That(t, p.Has("a.b.c")).True()
-		assert.That(t, p.Has("a.b.c[0]")).True()
+		assert.That(t, p.Exists("a.b.c")).True()
+		assert.That(t, p.Exists("a.b.c[0]")).True()
 		assert.That(t, p.Get("a.b.c[0]")).Equal("3")
 		assert.That(t, p.Data()).Equal(map[string]string{
 			"a.b.c[0]": "3",
@@ -139,9 +139,9 @@ func TestProperties_CopyTo(t *testing.T) {
 			"a.b.c[1]",
 		})
 
-		assert.That(t, s.Has("a.b.c")).True()
-		assert.That(t, s.Has("a.b.c[0]")).True()
-		assert.That(t, s.Has("a.b.c[1]")).True()
+		assert.That(t, s.Exists("a.b.c")).True()
+		assert.That(t, s.Exists("a.b.c[0]")).True()
+		assert.That(t, s.Exists("a.b.c[1]")).True()
 		assert.That(t, s.Data()).Equal(map[string]string{
 			"a.b.c[0]": "4",
 			"a.b.c[1]": "5",
