@@ -435,7 +435,7 @@ func TestProperties_Bind(t *testing.T) {
 			Value []int `value:"${v}"`
 		}
 		err := conf.New().Bind(&s)
-		assert.Error(t, err).Matches("property \"v\" not exist")
+		assert.Error(t, err).Matches("property \"v\": not exist")
 	})
 
 	t.Run("missing converter for slice", func(t *testing.T) {
@@ -463,7 +463,7 @@ func TestProperties_Bind(t *testing.T) {
 				"1", "2", "3",
 			},
 		}).Bind(&s)
-		assert.Error(t, err).Matches("property \"v.0\" not exist")
+		assert.Error(t, err).Matches("property \"v.0\": not exist")
 	})
 
 	t.Run("map type conflict", func(t *testing.T) {
@@ -473,7 +473,7 @@ func TestProperties_Bind(t *testing.T) {
 		err := conf.Map(map[string]any{
 			"v": "a:b,1:2",
 		}).Bind(&s)
-		assert.Error(t, err).Matches("property conflict at path v")
+		assert.Error(t, err).Matches("cannot list subkeys of leaf value at path v")
 	})
 
 	t.Run("missing map property", func(t *testing.T) {
@@ -481,7 +481,7 @@ func TestProperties_Bind(t *testing.T) {
 			Value map[string]int `value:"${v}"`
 		}
 		err := conf.New().Bind(&s)
-		assert.Error(t, err).Matches("property \"v\" not exist")
+		assert.Error(t, err).Matches("property \"v\": not exist")
 	})
 
 	t.Run("struct non empty default", func(t *testing.T) {
@@ -781,7 +781,7 @@ func TestResolveString(t *testing.T) {
 		}
 
 		err := p.Bind(&s)
-		assert.Error(t, err).Matches("property \"missing\" not exist")
+		assert.Error(t, err).Matches("property \"missing\": not exist")
 	})
 
 	t.Run("missing property with default", func(t *testing.T) {

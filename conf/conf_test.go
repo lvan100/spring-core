@@ -87,7 +87,7 @@ func TestProperties_Resolve(t *testing.T) {
 	t.Run("key not exist", func(t *testing.T) {
 		p := conf.New()
 		_, err := p.Resolve("${a.b.c}")
-		assert.Error(t, err).Matches("property \"a.b.c\" not exist")
+		assert.Error(t, err).Matches("property \"a.b.c\": not exist")
 	})
 
 	t.Run("array property as string", func(t *testing.T) {
@@ -169,7 +169,7 @@ func TestProperties_CopyTo(t *testing.T) {
 		assert.That(t, s.Get("a.b.c")).Equal("3")
 
 		err := p.CopyTo(s)
-		assert.Error(t, err).Matches("property conflict at path a.b.c\\[0]")
+		assert.Error(t, err).Matches("path a.b.c\\[0\\] conflicts with existing structure")
 	})
 }
 

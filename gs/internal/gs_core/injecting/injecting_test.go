@@ -509,7 +509,7 @@ func TestInjecting(t *testing.T) {
 			provideBean(NewZeroLogger),
 		}
 		err := r.Refresh(extractBeans(beans))
-		assert.Error(t, err).Matches("property \"\" not exist")
+		assert.Error(t, err).Matches("property \"\": not exist")
 	})
 
 	t.Run("wire error - missing required dependencies", func(t *testing.T) {
@@ -603,7 +603,7 @@ func TestInjecting(t *testing.T) {
 			})),
 		}
 		err := r.Refresh(extractBeans(beans))
-		assert.Error(t, err).Matches("property \"config.int\" not exist")
+		assert.Error(t, err).Matches("property \"config.int\": not exist")
 	})
 
 	t.Run("wire error - struct - missing prefixed properties", func(t *testing.T) {
@@ -614,7 +614,7 @@ func TestInjecting(t *testing.T) {
 			})),
 		}
 		err := r.Refresh(extractBeans(beans))
-		assert.Error(t, err).Matches("property \"svr.config.int\" not exist")
+		assert.Error(t, err).Matches("property \"svr.config.int\": not exist")
 	})
 
 	t.Run("wire error - destruction failure", func(t *testing.T) {

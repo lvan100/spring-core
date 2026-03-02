@@ -60,7 +60,7 @@ func TestContainer(t *testing.T) {
 			c.Provide(func(addr string) *http.Server { return nil }),
 		}
 		err := c.Refresh(conf.New(), roots)
-		assert.Error(t, err).Matches("property \"\" not exist")
+		assert.Error(t, err).Matches("property \"\": not exist")
 	})
 
 	t.Run("duplicate object registration", func(t *testing.T) {
@@ -94,6 +94,6 @@ func TestContainer(t *testing.T) {
 			}, gs_arg.Tag("${server.address}")),
 		}
 		err := c.Refresh(conf.New(), roots)
-		assert.Error(t, err).Matches("property \"server.address\" not exist")
+		assert.Error(t, err).Matches("property \"server.address\": not exist")
 	})
 }

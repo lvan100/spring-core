@@ -335,7 +335,7 @@ func getSlice(p Properties, et reflect.Type, param BindParam) (Properties, error
 	strVal, ok := p.Lookup(param.Key)
 	if !ok {
 		if !param.Tag.HasDef {
-			return nil, errutil.Explain(nil, "property %q %s", param.Key, ErrNotExist)
+			return nil, errutil.Explain(ErrNotExist, "property %q", param.Key)
 		}
 		if param.Tag.Def == "" {
 			return nil, nil
@@ -414,7 +414,7 @@ func bindMap(p Properties, v reflect.Value, t reflect.Type, param BindParam, fil
 		if param.Tag.HasDef {
 			return nil
 		}
-		return errutil.Explain(nil, "property %q %s", param.Key, ErrNotExist)
+		return errutil.Explain(ErrNotExist, "property %q", param.Key)
 	}
 
 	// fetch subkeys under the current key prefix
@@ -532,7 +532,7 @@ func resolve(p Properties, param BindParam) (string, error) {
 	if param.Tag.HasDef {
 		return resolveString(p, param.Tag.Def)
 	}
-	return "", errutil.Explain(nil, "property %q %s", param.Key, ErrNotExist)
+	return "", errutil.Explain(ErrNotExist, "property %q", param.Key)
 }
 
 // resolveString expands property references of the form ${key}
