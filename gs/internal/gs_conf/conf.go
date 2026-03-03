@@ -190,12 +190,8 @@ func (c *AppConfig) Refresh() (conf.Properties, error) {
 	// 5. -----
 	var sources []*NamedPropertyCopier
 	sources = append(sources, NewNamedPropertyCopier("app", c.Properties))
-	for i := len(tempAppFiles) - 1; i >= 0; i-- {
-		sources = append(sources, tempAppFiles[i])
-	}
-	for i := len(tempProfileFiles) - 1; i >= 0; i-- {
-		sources = append(sources, tempProfileFiles[i])
-	}
+	sources = append(sources, tempAppFiles...)
+	sources = append(sources, tempProfileFiles...)
 	sources = append(sources, NewNamedPropertyCopier("env", env))
 	sources = append(sources, NewNamedPropertyCopier("cmd", cmd))
 	return merge(sources...)
