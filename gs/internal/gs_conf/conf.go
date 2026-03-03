@@ -214,78 +214,19 @@ func (c *AppConfig) Refresh() (conf.Properties, error) {
 	}
 
 	// ---- Phase 2: Load local base and profile configuration files ----
-	localFiles, err := loadFiles(&Resolver{
+
+	resolver := &Resolver{
 		sources: []conf.Properties{cmd, env, c.Properties},
-	})
+	}
+
+	confDir, err := conf.ResolveString(resolver, "${spring.app.config.dir:=./conf}")
+	if err != nil {
+		return nil, err
+	}
+
+	appFiles, err := loadFiles(resolver, confDir, nil)
 	if err != nil {
 		return nil, errutil.Stack(err, "refresh error in source local")
-	}
-
-	// ---- Phase 3: Preliminary merge for import resolution ----
-
-	var p conf.Properties
-	var sources []*NamedPropertyCopier
-	sources = append(sources, NewNamedPropertyCopier("app", c.Properties))
-	sources = append(sources, localFiles...)
-	sources = append(sources, NewNamedPropertyCopier("env", env))
-	sources = append(sources, NewNamedPropertyCopier("cmd", cmd))
-	if p, err = merge(sources...); err != nil {
-		return nil, err
-	}
-
-	var i struct {
-		Imports []string `value:"${spring.app.imports:=}"`
-	}
-	if err = p.Bind(&i); err != nil {
-		return nil, err
-	}
-
-	// ---- Phase 4: Load imported configuration files (single-level) ----
-
-	sources = []*NamedPropertyCopier{}
-	sources = append(sources, NewNamedPropertyCopier("app", c.Properties))
-	sources = append(sources, localFiles...)
-	for _, source := range i.Imports {
-		if p, err = conf.Load(source); err != nil {
-			return nil, err
-		}
-		if p != nil {
-			sources = append(sources, NewNamedPropertyCopier(source, p))
-		}
-	}
-	sources = append(sources, NewNamedPropertyCopier("env", env))
-	sources = append(sources, NewNamedPropertyCopier("cmd", cmd))
-
-	// ---- Phase 5: Final merge with deterministic override order ----
-	return merge(sources...)
-}
-
-// getAppFiles generates a list of candidate configuration file paths,
-// including both base files (app.yaml, app.properties, etc.) and
-// profile-specific variants (app-dev.yaml, app-prod.properties, etc.).
-func getAppFiles(dir string, activeProfiles []string) ([]string, error) {
-	extensions := []string{".properties", ".yaml", ".yml", ".toml", ".tml", ".json"}
-
-	var files []string
-	for _, ext := range extensions {
-		files = append(files, filepath.Join(dir, "app"+ext))
-	}
-
-	for _, s := range activeProfiles {
-		for _, ext := range extensions {
-			files = append(files, filepath.Join(dir, "app-"+s+ext))
-		}
-	}
-	return files, nil
-}
-
-// loadFiles loads all candidate configuration files in order and returns
-// them as NamedPropertyCopier instances. Non-existent files are skipped,
-// while other loading errors abort the process.
-func loadFiles(resolver conf.Resolver) ([]*NamedPropertyCopier, error) {
-	dir, err := conf.ResolveString(resolver, "${spring.app.config.dir:=./conf}")
-	if err != nil {
-		return nil, err
 	}
 
 	strActiveProfiles, err := conf.ResolveString(resolver, "${spring.profiles.active:=}")
@@ -300,9 +241,39 @@ func loadFiles(resolver conf.Resolver) ([]*NamedPropertyCopier, error) {
 		}
 	}
 
-	files, err := getAppFiles(dir, activeProfiles)
+	profileFiles, err := loadFiles(resolver, confDir, activeProfiles)
 	if err != nil {
-		return nil, err
+		return nil, errutil.Stack(err, "refresh error in source local")
+	}
+
+	// ---- Phase 4: Load imported configuration files (single-level) ----
+
+	var sources []*NamedPropertyCopier
+	sources = append(sources, NewNamedPropertyCopier("app", c.Properties))
+	sources = append(sources, appFiles...)
+	sources = append(sources, profileFiles...)
+	sources = append(sources, NewNamedPropertyCopier("env", env))
+	sources = append(sources, NewNamedPropertyCopier("cmd", cmd))
+
+	// ---- Phase 5: Final merge with deterministic override order ----
+	return merge(sources...)
+}
+
+// loadFiles loads all candidate configuration files in order and returns
+// them as NamedPropertyCopier instances. Non-existent files are skipped,
+// while other loading errors abort the process.
+func loadFiles(resolver conf.Resolver, dir string, activeProfiles []string) ([]*NamedPropertyCopier, error) {
+	extensions := []string{".properties", ".yaml", ".yml", ".toml", ".tml", ".json"}
+
+	var files []string
+	for _, ext := range extensions {
+		files = append(files, filepath.Join(dir, "app"+ext))
+	}
+
+	for _, s := range activeProfiles {
+		for _, ext := range extensions {
+			files = append(files, filepath.Join(dir, "app-"+s+ext))
+		}
 	}
 
 	var ret []*NamedPropertyCopier
@@ -311,7 +282,8 @@ func loadFiles(resolver conf.Resolver) ([]*NamedPropertyCopier, error) {
 		if err != nil {
 			return nil, err
 		}
-		c, err := conf.Load(filename)
+		// Load the file
+		p, err := conf.Load(filename)
 		if err != nil {
 			// Don't use `os.IsNotExist`
 			if errors.Is(err, os.ErrNotExist) {
@@ -319,7 +291,34 @@ func loadFiles(resolver conf.Resolver) ([]*NamedPropertyCopier, error) {
 			}
 			return nil, err
 		}
-		ret = append(ret, NewNamedPropertyCopier(filename, c))
+		ret = append(ret, NewNamedPropertyCopier(filename, p))
+
+		// Load the file imports
+		sources, err := loadFileImports(p)
+		if err != nil {
+			return nil, err
+		}
+		ret = append(ret, sources...)
 	}
 	return ret, nil
+}
+
+func loadFileImports(p conf.Properties) ([]*NamedPropertyCopier, error) {
+
+	var i struct {
+		Imports []string `value:"${spring.app.imports:=}"`
+	}
+	if err := p.Bind(&i); err != nil {
+		return nil, err
+	}
+
+	var sources []*NamedPropertyCopier
+	for _, source := range i.Imports {
+		c, err := conf.Load(source)
+		if err != nil {
+			return nil, err
+		}
+		sources = append(sources, NewNamedPropertyCopier(source, c))
+	}
+	return sources, nil
 }
