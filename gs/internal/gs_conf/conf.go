@@ -148,7 +148,7 @@ func (c *AppConfig) Refresh() (conf.Properties, error) {
 
 	// Load local configuration files
 	localFiles, err := loadFiles(&Resolver{
-		sources: []conf.Properties{c.Properties, env, cmd},
+		sources: []conf.Properties{cmd, env, c.Properties},
 	})
 	if err != nil {
 		return nil, errutil.Stack(err, "refresh error in source local")
