@@ -522,7 +522,7 @@ func bindStruct(p Properties, v reflect.Value, t reflect.Type, param BindParam, 
 //	  "url"  = "http://${host}:8080"
 //
 //	resolve(url) -> "http://localhost:8080"
-func resolve(p Properties, param BindParam) (string, error) {
+func resolve(p Resolver, param BindParam) (string, error) {
 	if val, ok := p.Lookup(param.Key); ok {
 		return resolveString(p, val)
 	}
@@ -556,7 +556,7 @@ func resolve(p Properties, param BindParam) (string, error) {
 // Errors:
 // - ErrInvalidSyntax if braces are unbalanced.
 // - Propagates errors from resolve().
-func resolveString(p Properties, s string) (string, error) {
+func resolveString(p Resolver, s string) (string, error) {
 
 	// If there is no property reference, return the original string.
 	start := strings.Index(s, "${")

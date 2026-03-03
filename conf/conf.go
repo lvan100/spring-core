@@ -293,3 +293,10 @@ func (p *MutableProperties) Bind(i any, tag ...string) error {
 func (p *MutableProperties) CopyTo(out *MutableProperties) error {
 	return out.Merge(p.Storage)
 }
+
+type Resolver interface {
+	// Exists checks whether a key exists.
+	Exists(key string) bool
+	// Lookup returns the value for a given key, and whether it exists.
+	Lookup(key string) (string, bool)
+}
