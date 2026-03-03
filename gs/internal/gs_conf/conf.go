@@ -35,7 +35,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/go-spring/spring-core/conf"
 	"github.com/go-spring/stdlib/errutil"
@@ -109,12 +108,25 @@ func merge(sources ...*NamedPropertyCopier) (conf.Properties, error) {
 }
 
 type Resolver struct {
-	sources []conf.Properties
+	cmd          conf.Properties
+	env          conf.Properties
+	profileFiles []conf.Properties
+	appFiles     []conf.Properties
+	prop         conf.Properties
+}
+
+func (r *Resolver) sources() []conf.Properties {
+	var sources []conf.Properties
+	sources = append(sources, r.cmd, r.env)
+	sources = append(sources, r.profileFiles...)
+	sources = append(sources, r.appFiles...)
+	sources = append(sources, r.prop)
+	return sources
 }
 
 // Exists checks whether a key exists.
 func (r *Resolver) Exists(key string) bool {
-	for _, s := range r.sources {
+	for _, s := range r.sources() {
 		if s.Exists(key) {
 			return true
 		}
@@ -124,7 +136,7 @@ func (r *Resolver) Exists(key string) bool {
 
 // Lookup returns the value for a given key, and whether it exists.
 func (r *Resolver) Lookup(key string) (string, bool) {
-	for _, s := range r.sources {
+	for _, s := range r.sources() {
 		if v, ok := s.Lookup(key); ok {
 			return v, true
 		}
@@ -132,74 +144,7 @@ func (r *Resolver) Lookup(key string) (string, bool) {
 	return "", false
 }
 
-// Refresh loads, resolves, and merges all configuration layers into a final
-// read-only Properties instance.
-//
-// # Design Model
-//
-// This implementation follows a *linear layered configuration model*.
-// It deliberately avoids recursive profile activation or nested import expansion,
-// in order to keep the loading process predictable and easy to reason about.
-//
-// # Loading Phases
-//
-// Phase 1 — Runtime Sources
-//
-//	Load environment variables and command-line arguments.
-//	These always have the highest override priority.
-//
-// Phase 2 — Local Configuration Files
-//
-//	Determine the configuration directory and active profiles,
-//	then load:
-//
-//	  1. Base config files:        app.{ext}
-//	  2. Profile-specific files:   app-{profile}.{ext}
-//
-//	Profile activation is evaluated exactly once, using values from:
-//	  cmd > env > base config
-//
-// Phase 3 — Preliminary Merge (Import Resolution)
-//
-//	Merge:
-//	    app base
-//	    profile files
-//	    env
-//	    cmd
-//
-//	This temporary merged view is used only to resolve the value of
-//	"spring.app.imports". Variable placeholders are resolved using
-//	the full resolver chain.
-//
-// Phase 4 — Import Expansion
-//
-//	Load each imported configuration file.
-//	Import expansion is non-recursive:
-//	  - Imported files cannot trigger additional imports.
-//	  - Imported files cannot activate new profiles.
-//
-// Phase 5 — Final Merge
-//
-//	Merge all sources in the following order:
-//
-//	    base config
-//	    profile config
-//	    imported config
-//	    environment variables
-//	    command-line arguments
-//
-//	Later sources override earlier ones.
-//
-// Guarantees
-//
-//   - Profile activation is single-pass.
-//   - Import expansion is single-level.
-//   - No recursive loading.
-//   - Deterministic override order.
-//   - Command-line arguments always have highest precedence.
-//
-// This method returns a fully merged, immutable Properties view
-// representing the effective application configuration.
+// Refresh refreshes the configuration by merging multiple sources.
 func (c *AppConfig) Refresh() (conf.Properties, error) {
 	// 1. -----
 	env := conf.New()
@@ -212,10 +157,11 @@ func (c *AppConfig) Refresh() (conf.Properties, error) {
 		return nil, err
 	}
 
-	// 2. ----- todo 这里其实也可以改成 bind，因为是数组
-
+	// 2. -----
 	resolver := &Resolver{
-		sources: []conf.Properties{cmd, env, c.Properties},
+		cmd:  cmd,
+		env:  env,
+		prop: c.Properties,
 	}
 
 	confDir, err := conf.ResolveString(resolver, "${spring.app.config.dir:=./conf}")
@@ -223,16 +169,10 @@ func (c *AppConfig) Refresh() (conf.Properties, error) {
 		return nil, err
 	}
 
-	strActiveProfiles, err := conf.ResolveString(resolver, "${spring.profiles.active:=}")
+	var activeProfiles []string
+	err = conf.Bind(resolver, &activeProfiles, "${spring.profiles.active:=}")
 	if err != nil {
 		return nil, err
-	}
-
-	var activeProfiles []string
-	for s := range strings.SplitSeq(strActiveProfiles, ",") {
-		if s = strings.TrimSpace(s); s != "" {
-			activeProfiles = append(activeProfiles, s)
-		}
 	}
 
 	// 3. -----
@@ -260,7 +200,7 @@ func (c *AppConfig) Refresh() (conf.Properties, error) {
 // loadFiles loads all candidate configuration files in order and returns
 // them as NamedPropertyCopier instances. Non-existent files are skipped,
 // while other loading errors abort the process.
-func loadFiles(resolver conf.Resolver, dir string, activeProfiles []string) ([]*NamedPropertyCopier, error) {
+func loadFiles(resolver *Resolver, dir string, activeProfiles []string) ([]*NamedPropertyCopier, error) {
 	extensions := []string{".properties", ".yaml", ".yml", ".toml", ".tml", ".json"}
 
 	var files []string
@@ -290,33 +230,47 @@ func loadFiles(resolver conf.Resolver, dir string, activeProfiles []string) ([]*
 			return nil, err
 		}
 		ret = append(ret, NewNamedPropertyCopier(filename, p))
+		if activeProfiles == nil {
+			resolver.appFiles = append(resolver.appFiles, p)
+		} else {
+			resolver.profileFiles = append(resolver.profileFiles, p)
+		}
 
 		// Load the file imports
-		sources, err := loadFileImports(p)
+		names, sources, err := loadFileImports(resolver)
 		if err != nil {
 			return nil, err
 		}
-		ret = append(ret, sources...)
+		for i, source := range sources {
+			ret = append(ret, NewNamedPropertyCopier(names[i], source))
+			if activeProfiles == nil {
+				resolver.appFiles = append(resolver.appFiles, source)
+			} else {
+				resolver.profileFiles = append(resolver.profileFiles, source)
+			}
+		}
 	}
 	return ret, nil
 }
 
-func loadFileImports(p conf.Resolver) ([]*NamedPropertyCopier, error) {
+func loadFileImports(p *Resolver) ([]string, []conf.Properties, error) {
 
 	var i struct {
 		Imports []string `value:"${spring.app.imports:=}"`
 	}
 	if err := conf.Bind(p, &i); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	var sources []*NamedPropertyCopier
+	var names []string
+	var sources []conf.Properties
 	for _, source := range i.Imports {
 		c, err := conf.Load(source)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		sources = append(sources, NewNamedPropertyCopier(source, c))
+		names = append(names, source)
+		sources = append(sources, c)
 	}
-	return sources, nil
+	return names, sources, nil
 }
