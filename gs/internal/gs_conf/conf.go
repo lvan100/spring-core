@@ -132,10 +132,77 @@ func (r *Resolver) Lookup(key string) (string, bool) {
 	return "", false
 }
 
-// Refresh merges all configuration layers into a read-only Properties instance.
-// If useImport is true, it additionally loads and merges imported configuration
-// files defined via the "spring.app.imports" property.
+// Refresh loads, resolves, and merges all configuration layers into a final
+// read-only Properties instance.
+//
+// # Design Model
+//
+// This implementation follows a *linear layered configuration model*.
+// It deliberately avoids recursive profile activation or nested import expansion,
+// in order to keep the loading process predictable and easy to reason about.
+//
+// # Loading Phases
+//
+// Phase 1 — Runtime Sources
+//
+//	Load environment variables and command-line arguments.
+//	These always have the highest override priority.
+//
+// Phase 2 — Local Configuration Files
+//
+//	Determine the configuration directory and active profiles,
+//	then load:
+//
+//	  1. Base config files:        app.{ext}
+//	  2. Profile-specific files:   app-{profile}.{ext}
+//
+//	Profile activation is evaluated exactly once, using values from:
+//	  cmd > env > base config
+//
+// Phase 3 — Preliminary Merge (Import Resolution)
+//
+//	Merge:
+//	    app base
+//	    profile files
+//	    env
+//	    cmd
+//
+//	This temporary merged view is used only to resolve the value of
+//	"spring.app.imports". Variable placeholders are resolved using
+//	the full resolver chain.
+//
+// Phase 4 — Import Expansion
+//
+//	Load each imported configuration file.
+//	Import expansion is non-recursive:
+//	  - Imported files cannot trigger additional imports.
+//	  - Imported files cannot activate new profiles.
+//
+// Phase 5 — Final Merge
+//
+//	Merge all sources in the following order:
+//
+//	    base config
+//	    profile config
+//	    imported config
+//	    environment variables
+//	    command-line arguments
+//
+//	Later sources override earlier ones.
+//
+// Guarantees
+//
+//   - Profile activation is single-pass.
+//   - Import expansion is single-level.
+//   - No recursive loading.
+//   - Deterministic override order.
+//   - Command-line arguments always have highest precedence.
+//
+// This method returns a fully merged, immutable Properties view
+// representing the effective application configuration.
 func (c *AppConfig) Refresh() (conf.Properties, error) {
+	// ---- Phase 1: Load runtime sources (env + cmd) ----
+
 	env := conf.New()
 	cmd := conf.New()
 
@@ -146,13 +213,15 @@ func (c *AppConfig) Refresh() (conf.Properties, error) {
 		return nil, err
 	}
 
-	// Load local configuration files
+	// ---- Phase 2: Load local base and profile configuration files ----
 	localFiles, err := loadFiles(&Resolver{
 		sources: []conf.Properties{cmd, env, c.Properties},
 	})
 	if err != nil {
 		return nil, errutil.Stack(err, "refresh error in source local")
 	}
+
+	// ---- Phase 3: Preliminary merge for import resolution ----
 
 	var p conf.Properties
 	var sources []*NamedPropertyCopier
@@ -171,6 +240,8 @@ func (c *AppConfig) Refresh() (conf.Properties, error) {
 		return nil, err
 	}
 
+	// ---- Phase 4: Load imported configuration files (single-level) ----
+
 	sources = []*NamedPropertyCopier{}
 	sources = append(sources, NewNamedPropertyCopier("app", c.Properties))
 	sources = append(sources, localFiles...)
@@ -184,6 +255,8 @@ func (c *AppConfig) Refresh() (conf.Properties, error) {
 	}
 	sources = append(sources, NewNamedPropertyCopier("env", env))
 	sources = append(sources, NewNamedPropertyCopier("cmd", cmd))
+
+	// ---- Phase 5: Final merge with deterministic override order ----
 	return merge(sources...)
 }
 
