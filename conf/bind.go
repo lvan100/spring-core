@@ -524,18 +524,18 @@ func bindStruct(p Properties, v reflect.Value, t reflect.Type, param BindParam, 
 //	resolve(url) -> "http://localhost:8080"
 func resolve(p Resolver, param BindParam) (string, error) {
 	if val, ok := p.Lookup(param.Key); ok {
-		return resolveString(p, val)
+		return ResolveString(p, val)
 	}
 	if p.Exists(param.Key) {
 		return "", errutil.Explain(nil, "property %q isn't simple value", param.Key)
 	}
 	if param.Tag.HasDef {
-		return resolveString(p, param.Tag.Def)
+		return ResolveString(p, param.Tag.Def)
 	}
 	return "", errutil.Explain(ErrNotExist, "property %q", param.Key)
 }
 
-// resolveString expands property references of the form ${key}
+// ResolveString expands property references of the form ${key}
 // inside a string, recursively resolving nested expressions.
 //
 // Supported features:
@@ -556,7 +556,7 @@ func resolve(p Resolver, param BindParam) (string, error) {
 // Errors:
 // - ErrInvalidSyntax if braces are unbalanced.
 // - Propagates errors from resolve().
-func resolveString(p Resolver, s string) (string, error) {
+func ResolveString(p Resolver, s string) (string, error) {
 
 	// If there is no property reference, return the original string.
 	start := strings.Index(s, "${")
@@ -599,7 +599,7 @@ func resolveString(p Resolver, s string) (string, error) {
 	}
 
 	// resolve the remaining part of the string
-	suffix, err := resolveString(p, s[end+1:])
+	suffix, err := ResolveString(p, s[end+1:])
 	if err != nil {
 		return "", errutil.Explain(err, "resolve string %q error", s)
 	}

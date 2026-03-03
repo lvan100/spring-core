@@ -240,7 +240,7 @@ func Map(data map[string]any) *MutableProperties {
 // Resolve resolves placeholders in a string, replacing references like
 // ${key:=default} with their actual values from the properties.
 func (p *MutableProperties) Resolve(s string) (string, error) {
-	return resolveString(p, s)
+	return ResolveString(p, s)
 }
 
 // Bind maps property values into the provided target object.
