@@ -282,7 +282,7 @@ func (c *ConditionContext) resolveBean(b *gs_bean.BeanDefinition) error {
 
 // Has checks if a configuration property exists.
 func (c *ConditionContext) Has(key string) bool {
-	return c.p.Has(key)
+	return c.p.Exists(key)
 }
 
 // Prop retrieves a configuration property by key,

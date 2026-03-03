@@ -871,7 +871,7 @@ func NewArgContext(c *Injector, stack *Stack) *ArgContext {
 
 // Has checks whether a configuration key is present.
 func (a *ArgContext) Has(key string) bool {
-	return a.c.p.Data().Has(key)
+	return a.c.p.Data().Exists(key)
 }
 
 // Prop retrieves a property value, with optional default.

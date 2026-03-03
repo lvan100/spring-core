@@ -117,16 +117,6 @@ func (app *App) Property(key string, val string) {
 	}
 }
 
-// RefreshProperties reloads application properties from all sources
-// and propagates the changes to the IoC container.
-func (app *App) RefreshProperties() error {
-	p, err := app.p.Refresh(true)
-	if err != nil {
-		return err
-	}
-	return app.c.RefreshProperties(p)
-}
-
 // Provide registers a new bean definition in the IoC container.
 // The parameter can be either an existing instance or a constructor function.
 // Additional arguments can be passed for dependency injection.
@@ -134,13 +124,19 @@ func (app *App) Provide(objOrCtor any, args ...gs.Arg) *gs_bean.BeanDefinition {
 	return app.c.Provide(objOrCtor, args...).Caller(2)
 }
 
-// initLog initializes the application's logging system.
-func (app *App) initLog() error {
-	p, err := app.p.Refresh(false)
+// RefreshProperties reloads application properties from all sources
+// and propagates the changes to the IoC container.
+func (app *App) RefreshProperties() error {
+	p, err := app.p.Refresh()
 	if err != nil {
 		return err
 	}
-	m, err := p.SubMap("logging")
+	return app.c.RefreshProperties(p)
+}
+
+// initLog initializes the application's logging system.
+func (app *App) initLog(p conf.Properties) error {
+	m, err := p.SubTree("logging")
 	if err != nil {
 		return err
 	}
@@ -160,8 +156,14 @@ func (app *App) initLog() error {
 //  6. Wait for readiness signal from all servers
 func (app *App) Start() error {
 
+	// Load and refresh application properties
+	p, err := app.p.Refresh()
+	if err != nil {
+		return err
+	}
+
 	// Initialize logger
-	if err := app.initLog(); err != nil {
+	if err = app.initLog(p); err != nil {
 		return err
 	}
 
@@ -173,23 +175,14 @@ func (app *App) Start() error {
 		app.c.Provide(app),
 	}
 
-	// Load and refresh application properties
-	var p conf.Properties
-	{
-		var err error
-		if p, err = app.p.Refresh(true); err != nil {
-			return err
-		}
-	}
-
 	// Refresh IoC container to wire all beans
-	if err := app.c.Refresh(p, roots); err != nil {
+	if err = app.c.Refresh(p, roots); err != nil {
 		return err
 	}
 
 	// Execute all Runner beans sequentially
 	for _, r := range app.Runners {
-		if err := r.Run(app.ctx); err != nil {
+		if err = r.Run(app.ctx); err != nil {
 			return err
 		}
 	}
