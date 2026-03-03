@@ -170,7 +170,7 @@ func (c *AppConfig) Refresh() (conf.Properties, error) {
 	}
 
 	// 3. -----
-	appFiles, err := loadFiles(resolver, confDir, nil)
+	tempAppFiles, err := loadFiles(resolver, confDir, nil)
 	if err != nil {
 		return nil, errutil.Stack(err, "refresh error in source local")
 	}
@@ -182,7 +182,7 @@ func (c *AppConfig) Refresh() (conf.Properties, error) {
 	}
 
 	// 4. -----
-	profileFiles, err := loadFiles(resolver, confDir, activeProfiles)
+	tempProfileFiles, err := loadFiles(resolver, confDir, activeProfiles)
 	if err != nil {
 		return nil, errutil.Stack(err, "refresh error in source local")
 	}
@@ -190,11 +190,11 @@ func (c *AppConfig) Refresh() (conf.Properties, error) {
 	// 5. -----
 	var sources []*NamedPropertyCopier
 	sources = append(sources, NewNamedPropertyCopier("app", c.Properties))
-	for i := len(appFiles) - 1; i >= 0; i-- {
-		sources = append(sources, appFiles[i])
+	for i := len(tempAppFiles) - 1; i >= 0; i-- {
+		sources = append(sources, tempAppFiles[i])
 	}
-	for i := len(profileFiles) - 1; i >= 0; i-- {
-		sources = append(sources, profileFiles[i])
+	for i := len(tempProfileFiles) - 1; i >= 0; i-- {
+		sources = append(sources, tempProfileFiles[i])
 	}
 	sources = append(sources, NewNamedPropertyCopier("env", env))
 	sources = append(sources, NewNamedPropertyCopier("cmd", cmd))
