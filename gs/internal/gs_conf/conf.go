@@ -201,8 +201,7 @@ func (r *Resolver) Lookup(key string) (string, bool) {
 // This method returns a fully merged, immutable Properties view
 // representing the effective application configuration.
 func (c *AppConfig) Refresh() (conf.Properties, error) {
-	// ---- Phase 1: Load runtime sources (env + cmd) ----
-
+	// 1. -----
 	env := conf.New()
 	cmd := conf.New()
 
@@ -213,7 +212,7 @@ func (c *AppConfig) Refresh() (conf.Properties, error) {
 		return nil, err
 	}
 
-	// ---- Phase 2: Load local base and profile configuration files ----
+	// 2. ----- todo 这里其实也可以改成 bind，因为是数组
 
 	resolver := &Resolver{
 		sources: []conf.Properties{cmd, env, c.Properties},
@@ -222,11 +221,6 @@ func (c *AppConfig) Refresh() (conf.Properties, error) {
 	confDir, err := conf.ResolveString(resolver, "${spring.app.config.dir:=./conf}")
 	if err != nil {
 		return nil, err
-	}
-
-	appFiles, err := loadFiles(resolver, confDir, nil)
-	if err != nil {
-		return nil, errutil.Stack(err, "refresh error in source local")
 	}
 
 	strActiveProfiles, err := conf.ResolveString(resolver, "${spring.profiles.active:=}")
@@ -241,21 +235,25 @@ func (c *AppConfig) Refresh() (conf.Properties, error) {
 		}
 	}
 
+	// 3. -----
+	appFiles, err := loadFiles(resolver, confDir, nil)
+	if err != nil {
+		return nil, errutil.Stack(err, "refresh error in source local")
+	}
+
+	// 4. -----
 	profileFiles, err := loadFiles(resolver, confDir, activeProfiles)
 	if err != nil {
 		return nil, errutil.Stack(err, "refresh error in source local")
 	}
 
-	// ---- Phase 4: Load imported configuration files (single-level) ----
-
+	// 5. -----
 	var sources []*NamedPropertyCopier
 	sources = append(sources, NewNamedPropertyCopier("app", c.Properties))
 	sources = append(sources, appFiles...)
 	sources = append(sources, profileFiles...)
 	sources = append(sources, NewNamedPropertyCopier("env", env))
 	sources = append(sources, NewNamedPropertyCopier("cmd", cmd))
-
-	// ---- Phase 5: Final merge with deterministic override order ----
 	return merge(sources...)
 }
 
