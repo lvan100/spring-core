@@ -253,7 +253,15 @@ func (p *MutableProperties) Resolve(s string) (string, error) {
 // - default: default value if key is missing
 // - splitter: registered splitter name for splitting into []string
 func (p *MutableProperties) Bind(i any, tag ...string) error {
+	return bindObject(p, i, tag...)
+}
 
+// Bind maps property values into the provided target object.
+func Bind(p Resolver, i any, tag ...string) error {
+	return bindObject(p, i, tag...)
+}
+
+func bindObject(p Resolver, i any, tag ...string) error {
 	var v reflect.Value
 	{
 		switch refVal := i.(type) {

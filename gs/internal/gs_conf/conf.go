@@ -301,12 +301,12 @@ func loadFiles(resolver conf.Resolver, dir string, activeProfiles []string) ([]*
 	return ret, nil
 }
 
-func loadFileImports(p conf.Properties) ([]*NamedPropertyCopier, error) {
+func loadFileImports(p conf.Resolver) ([]*NamedPropertyCopier, error) {
 
 	var i struct {
 		Imports []string `value:"${spring.app.imports:=}"`
 	}
-	if err := p.Bind(&i); err != nil {
+	if err := conf.Bind(p, &i); err != nil {
 		return nil, err
 	}
 

@@ -177,7 +177,7 @@ type Filter interface {
 // - Returns ErrNotExist if the property is missing without a default.
 // - Returns type conversion errors if parsing fails.
 // - Returns wrapped errors with context (path, type).
-func BindValue(p Properties, v reflect.Value, t reflect.Type, param BindParam, filter Filter) (RetErr error) {
+func BindValue(p Resolver, v reflect.Value, t reflect.Type, param BindParam, filter Filter) (RetErr error) {
 
 	if !typeutil.IsPropBindingTarget(t) {
 		err := errutil.Explain(nil, "target should be value type")
@@ -198,7 +198,11 @@ func BindValue(p Properties, v reflect.Value, t reflect.Type, param BindParam, f
 
 	switch v.Kind() {
 	case reflect.Map:
-		return bindMap(p, v, t, param, filter)
+		x, ok := p.(Properties)
+		if !ok {
+			return errutil.Explain(nil, "map type should be implemented by Properties")
+		}
+		return bindMap(x, v, t, param, filter)
 	case reflect.Slice:
 		return bindSlice(p, v, t, param, filter)
 	case reflect.Array:
@@ -280,7 +284,7 @@ func BindValue(p Properties, v reflect.Value, t reflect.Type, param BindParam, f
 //
 // The slice is always reset (v.Set(slice)) before return,
 // even if binding fails midway.
-func bindSlice(p Properties, v reflect.Value, t reflect.Type, param BindParam, filter Filter) error {
+func bindSlice(p Resolver, v reflect.Value, t reflect.Type, param BindParam, filter Filter) error {
 
 	elemType := t.Elem()
 	p, err := getSlice(p, elemType, param)
@@ -314,7 +318,7 @@ func bindSlice(p Properties, v reflect.Value, t reflect.Type, param BindParam, f
 	return nil
 }
 
-// getSlice prepares a Properties object representing slice elements
+// getSlice prepares a Resolver object representing slice elements
 // derived from either:
 //
 // - Explicit indexed properties (preferred).
@@ -324,7 +328,7 @@ func bindSlice(p Properties, v reflect.Value, t reflect.Type, param BindParam, f
 // - ErrNotExist if property is missing and no default is provided.
 // - Unknown splitter name if specified splitter is not registered.
 // - Converter missing for non-primitive element types.
-func getSlice(p Properties, et reflect.Type, param BindParam) (Properties, error) {
+func getSlice(p Resolver, et reflect.Type, param BindParam) (Resolver, error) {
 
 	// case 1: properties already defined as list (e.g. key[0], key[1]...)
 	if p.Exists(param.Key + "[0]") {
@@ -459,7 +463,7 @@ func bindMap(p Properties, v reflect.Value, t reflect.Type, param BindParam, fil
 // - Invalid syntax in tag.
 // - Binding or conversion failures in nested fields.
 // - Infinite recursion is avoided for embedded pointer structs.
-func bindStruct(p Properties, v reflect.Value, t reflect.Type, param BindParam, filter Filter) error {
+func bindStruct(p Resolver, v reflect.Value, t reflect.Type, param BindParam, filter Filter) error {
 
 	if param.Tag.HasDef && param.Tag.Def != "" {
 		err := errutil.Explain(nil, "struct can't have a non-empty default value")
