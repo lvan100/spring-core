@@ -57,7 +57,7 @@ func TestEnvironment(t *testing.T) {
 			"db": []string{"db2"},
 		})
 		err := NewEnvironment().CopyTo(props)
-		assert.Error(t, err).Matches("property conflict at path db.host")
+		assert.Error(t, err).Matches("type conflict at path db.host")
 	})
 
 	t.Run("nested property conflict", func(t *testing.T) {
@@ -69,6 +69,6 @@ func TestEnvironment(t *testing.T) {
 			"db": "123",
 		})
 		err := NewEnvironment().CopyTo(props)
-		assert.Error(t, err).Matches("property conflict at path db.host")
+		assert.Error(t, err).Matches("path db.host conflicts with existing structure")
 	})
 }

@@ -108,28 +108,53 @@ func merge(sources ...*NamedPropertyCopier) (conf.Properties, error) {
 	return out, nil
 }
 
+type Resolver struct {
+	sources []conf.Properties
+}
+
+// Exists checks whether a key exists.
+func (r *Resolver) Exists(key string) bool {
+	for _, s := range r.sources {
+		if s.Exists(key) {
+			return true
+		}
+	}
+	return false
+}
+
+// Lookup returns the value for a given key, and whether it exists.
+func (r *Resolver) Lookup(key string) (string, bool) {
+	for _, s := range r.sources {
+		if v, ok := s.Lookup(key); ok {
+			return v, true
+		}
+	}
+	return "", false
+}
+
 // Refresh merges all configuration layers into a read-only Properties instance.
 // If useImport is true, it additionally loads and merges imported configuration
 // files defined via the "spring.app.imports" property.
-func (c *AppConfig) Refresh(useImport bool) (conf.Properties, error) {
-	env := NewEnvironment()
-	cmd := NewCommandArgs()
+func (c *AppConfig) Refresh() (conf.Properties, error) {
+	env := conf.New()
+	cmd := conf.New()
 
-	p, err := merge(
-		NewNamedPropertyCopier("app", c.Properties),
-		NewNamedPropertyCopier("env", env),
-		NewNamedPropertyCopier("cmd", cmd),
-	)
-	if err != nil {
+	if err := NewEnvironment().CopyTo(env); err != nil {
+		return nil, err
+	}
+	if err := NewCommandArgs().CopyTo(cmd); err != nil {
 		return nil, err
 	}
 
 	// Load local configuration files
-	localFiles, err := loadFiles(p)
+	localFiles, err := loadFiles(&Resolver{
+		sources: []conf.Properties{c.Properties, env, cmd},
+	})
 	if err != nil {
 		return nil, errutil.Stack(err, "refresh error in source local")
 	}
 
+	var p conf.Properties
 	var sources []*NamedPropertyCopier
 	sources = append(sources, NewNamedPropertyCopier("app", c.Properties))
 	sources = append(sources, localFiles...)
@@ -137,11 +162,6 @@ func (c *AppConfig) Refresh(useImport bool) (conf.Properties, error) {
 	sources = append(sources, NewNamedPropertyCopier("cmd", cmd))
 	if p, err = merge(sources...); err != nil {
 		return nil, err
-	}
-
-	// Skip imports if not enabled
-	if !useImport {
-		return p, nil
 	}
 
 	var i struct {
@@ -189,13 +209,13 @@ func getAppFiles(dir string, activeProfiles []string) ([]string, error) {
 // loadFiles loads all candidate configuration files in order and returns
 // them as NamedPropertyCopier instances. Non-existent files are skipped,
 // while other loading errors abort the process.
-func loadFiles(resolver conf.Properties) ([]*NamedPropertyCopier, error) {
-	dir, err := resolver.Resolve("${spring.app.config.dir:=./conf}")
+func loadFiles(resolver conf.Resolver) ([]*NamedPropertyCopier, error) {
+	dir, err := conf.ResolveString(resolver, "${spring.app.config.dir:=./conf}")
 	if err != nil {
 		return nil, err
 	}
 
-	strActiveProfiles, err := resolver.Resolve("${spring.profiles.active:=}")
+	strActiveProfiles, err := conf.ResolveString(resolver, "${spring.profiles.active:=}")
 	if err != nil {
 		return nil, err
 	}
@@ -214,7 +234,7 @@ func loadFiles(resolver conf.Properties) ([]*NamedPropertyCopier, error) {
 
 	var ret []*NamedPropertyCopier
 	for _, s := range files {
-		filename, err := resolver.Resolve(s)
+		filename, err := conf.ResolveString(resolver, s)
 		if err != nil {
 			return nil, err
 		}

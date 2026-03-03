@@ -69,7 +69,7 @@ func TestCommandArgs(t *testing.T) {
 			"debug": []string{"true"},
 		})
 		err := NewCommandArgs().CopyTo(p)
-		assert.Error(t, err).Matches("property conflict at path debug")
+		assert.Error(t, err).Matches("cannot overwrite path debug")
 	})
 
 	t.Run("custom prefix", func(t *testing.T) {
@@ -92,8 +92,8 @@ func TestCommandArgs(t *testing.T) {
 		err := NewCommandArgs().CopyTo(props)
 		assert.That(t, err).Nil()
 		assert.That(t, "prod").Equal(props.Get("env"))
-		assert.That(t, props.Has("--log-level")).False()
-		assert.That(t, props.Has("-v")).False()
+		assert.That(t, props.Exists("--log-level")).False()
+		assert.That(t, props.Exists("-v")).False()
 	})
 
 	t.Run("empty value assignment", func(t *testing.T) {
@@ -122,6 +122,6 @@ func TestCommandArgs(t *testing.T) {
 		assert.That(t, err).Nil()
 		assert.That(t, "key").Equal(props.Get("valid"))
 		assert.That(t, "value").Equal(props.Get("another"))
-		assert.That(t, props.Has("-x")).False()
+		assert.That(t, props.Exists("-x")).False()
 	})
 }
