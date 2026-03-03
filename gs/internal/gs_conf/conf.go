@@ -169,16 +169,16 @@ func (c *AppConfig) Refresh() (conf.Properties, error) {
 		return nil, err
 	}
 
-	var activeProfiles []string
-	err = conf.Bind(resolver, &activeProfiles, "${spring.profiles.active:=}")
-	if err != nil {
-		return nil, err
-	}
-
 	// 3. -----
 	appFiles, err := loadFiles(resolver, confDir, nil)
 	if err != nil {
 		return nil, errutil.Stack(err, "refresh error in source local")
+	}
+
+	var activeProfiles []string
+	err = conf.Bind(resolver, &activeProfiles, "${spring.profiles.active:=}")
+	if err != nil {
+		return nil, err
 	}
 
 	// 4. -----
@@ -190,8 +190,12 @@ func (c *AppConfig) Refresh() (conf.Properties, error) {
 	// 5. -----
 	var sources []*NamedPropertyCopier
 	sources = append(sources, NewNamedPropertyCopier("app", c.Properties))
-	sources = append(sources, appFiles...)
-	sources = append(sources, profileFiles...)
+	for i := len(appFiles) - 1; i >= 0; i-- {
+		sources = append(sources, appFiles[i])
+	}
+	for i := len(profileFiles) - 1; i >= 0; i-- {
+		sources = append(sources, profileFiles[i])
+	}
 	sources = append(sources, NewNamedPropertyCopier("env", env))
 	sources = append(sources, NewNamedPropertyCopier("cmd", cmd))
 	return merge(sources...)
@@ -216,10 +220,12 @@ func loadFiles(resolver *Resolver, dir string, activeProfiles []string) ([]*Name
 
 	var ret []*NamedPropertyCopier
 	for _, s := range files {
+		// 解析文件名
 		filename, err := conf.ResolveString(resolver, s)
 		if err != nil {
 			return nil, err
 		}
+
 		// Load the file
 		p, err := conf.Load(filename)
 		if err != nil {
@@ -229,48 +235,71 @@ func loadFiles(resolver *Resolver, dir string, activeProfiles []string) ([]*Name
 			}
 			return nil, err
 		}
+
+		// 此处为顺序插入，但是最后使用的时候需要反转
 		ret = append(ret, NewNamedPropertyCopier(filename, p))
+
+		// 优先级高的在前面，优先级低的在后面，因此是前插操作
 		if activeProfiles == nil {
-			resolver.appFiles = append(resolver.appFiles, p)
+			resolver.appFiles = append([]conf.Properties{p}, resolver.appFiles...)
 		} else {
-			resolver.profileFiles = append(resolver.profileFiles, p)
+			resolver.profileFiles = append([]conf.Properties{p}, resolver.profileFiles...)
 		}
 
 		// Load the file imports
-		names, sources, err := loadFileImports(resolver)
+		names, sources, err := loadFileImports(resolver, p, activeProfiles)
 		if err != nil {
 			return nil, err
 		}
 		for i, source := range sources {
+			// 此处为顺序插入，但是最后使用的时候需要反转
 			ret = append(ret, NewNamedPropertyCopier(names[i], source))
-			if activeProfiles == nil {
-				resolver.appFiles = append(resolver.appFiles, source)
-			} else {
-				resolver.profileFiles = append(resolver.profileFiles, source)
-			}
 		}
 	}
 	return ret, nil
 }
 
-func loadFileImports(p *Resolver) ([]string, []conf.Properties, error) {
+func loadFileImports(resolver *Resolver, file conf.Properties, activeProfiles []string) ([]string, []conf.Properties, error) {
 
 	var i struct {
 		Imports []string `value:"${spring.app.imports:=}"`
 	}
-	if err := conf.Bind(p, &i); err != nil {
+
+	// 找到 file 里面的 imports
+	if err := file.Bind(&i); err != nil {
 		return nil, nil, err
+	}
+
+	// 没有则退出
+	if len(i.Imports) == 0 {
+		return nil, nil, nil
 	}
 
 	var names []string
 	var sources []conf.Properties
+
 	for _, source := range i.Imports {
-		c, err := conf.Load(source)
+		// 解析 source
+		str, err := conf.ResolveString(resolver, source)
 		if err != nil {
 			return nil, nil, err
 		}
+
+		// 加载 source
+		c, err := conf.Load(str)
+		if err != nil {
+			return nil, nil, err
+		}
+
 		names = append(names, source)
 		sources = append(sources, c)
+
+		// 优先级高的在前面，优先级低的在后面，因此是前插操作
+		if activeProfiles == nil {
+			resolver.appFiles = append([]conf.Properties{c}, resolver.appFiles...)
+		} else {
+			resolver.profileFiles = append([]conf.Properties{c}, resolver.profileFiles...)
+		}
 	}
 	return names, sources, nil
 }
