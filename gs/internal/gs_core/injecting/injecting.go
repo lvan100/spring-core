@@ -25,7 +25,6 @@ import (
 	"slices"
 	"sort"
 	"strings"
-	"testing"
 
 	"github.com/go-spring/log"
 	"github.com/go-spring/spring-core/conf"
@@ -80,17 +79,17 @@ func (c *Injecting) RefreshProperties(p flatten.Storage) error {
 //     Note: lazy wiring only applies to explicitly marked fields and does not
 //     resolve arbitrary circular dependencies.
 //  4. Registers destroyer callbacks for beans in dependency-safe order.
-//  5. Optionally cleans up metadata and internal references when not in testing mode,
-//     or if 'spring.force-clean' is true (even in testing).
+//  5. Cleans up metadata.
 //
 // Behavior is influenced by properties:
 // - spring.allow-circular-references: whether lazy circular references are allowed.
 // - spring.force-autowire-is-nullable: whether missing dependencies are treated as nullable.
 func (c *Injecting) Refresh(roots, beans []*gs_bean.BeanDefinition) (err error) {
-	str1, _ := c.p.Data().Value("spring.allow-circular-references")
-	allowCircularReferences := cast.ToBool(str1)
-	str2, _ := c.p.Data().Value("spring.force-autowire-is-nullable")
-	forceAutowireIsNullable := cast.ToBool(str2)
+	var forceAutowireIsNullable bool
+	{
+		s, _ := c.p.Data().Value("spring.force-autowire-is-nullable")
+		forceAutowireIsNullable = cast.ToBool(s)
+	}
 
 	// Index beans by name and type for lookup
 	c.beansByName = make(map[string][]*gs_bean.BeanDefinition)
@@ -131,57 +130,22 @@ func (c *Injecting) Refresh(roots, beans []*gs_bean.BeanDefinition) (err error) 
 	r.state = Refreshed
 
 	// Step 2: Handle lazy fields caused by circular dependencies.
-	if allowCircularReferences {
-		for _, f := range stack.lazyFields {
-			tag := strings.TrimSuffix(f.tag, ",lazy")
-			if err = r.autowire(f.v, tag, stack); err != nil {
-				return err
-			}
+	for _, f := range stack.lazyFields {
+		tag := strings.TrimSuffix(f.tag, ",lazy")
+		if err = r.autowire(f.v, tag, stack); err != nil {
+			return err
 		}
-	} else if len(stack.lazyFields) > 0 {
-		return errutil.Explain(nil, "found circular autowire")
 	}
 
 	// Step 3: Collect destroyer callbacks in dependency-safe order.
 	c.destroyers = stack.getSortedDestroyers()
 
-	// Optional cleanup in non-testing environments.
-	str3, _ := c.p.Data().Value("spring.force-clean")
-	forceClean := cast.ToBool(str3)
-	if !testing.Testing() || forceClean {
-		if c.p.ObjectsCount() == 0 {
-			c.p = nil
-		}
-		c.beansByName = nil
-		c.beansByType = nil
-		return nil
+	// Step 4: Clean up metadata.
+	if c.p.ObjectsCount() == 0 {
+		c.p = nil
 	}
-	return nil
-}
-
-// Wire injects dependencies into a user-provided object.
-// It recursively wires struct fields marked with 'autowire' or 'inject' tags,
-// including fields marked with ',lazy' for deferred injection.
-func (c *Injecting) Wire(obj any) error {
-	r := &Injector{
-		state:                   Refreshed,
-		p:                       gs_dync.New(c.p.Data()),
-		beansByName:             c.beansByName,
-		beansByType:             c.beansByType,
-		forceAutowireIsNullable: true,
-	}
-	stack := NewStack()
-	t := reflect.TypeOf(obj)
-	v := reflect.ValueOf(obj)
-	if err := r.wireBeanValue(v, t, stack); err != nil {
-		return err
-	}
-	for _, f := range stack.lazyFields {
-		tag := strings.TrimSuffix(f.tag, ",lazy")
-		if err := r.autowire(f.v, tag, stack); err != nil {
-			return err
-		}
-	}
+	c.beansByName = nil
+	c.beansByType = nil
 	return nil
 }
 

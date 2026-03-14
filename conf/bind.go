@@ -283,9 +283,8 @@ func bindSlice(p flatten.Storage, v reflect.Value, t reflect.Type, param BindPar
 	}
 
 	slice := reflect.MakeSlice(t, 0, 0)
-	defer func() { v.Set(slice) }()
-
 	if p == nil {
+		v.Set(slice)
 		return nil
 	}
 
@@ -305,6 +304,7 @@ func bindSlice(p flatten.Storage, v reflect.Value, t reflect.Type, param BindPar
 		}
 		slice = reflect.Append(slice, subValue)
 	}
+	v.Set(slice)
 	return nil
 }
 
@@ -378,11 +378,11 @@ func bindMap(p flatten.Storage, v reflect.Value, t reflect.Type, param BindParam
 
 	elemType := t.Elem()
 	ret := reflect.MakeMap(t)
-	defer func() { v.Set(ret) }()
 
 	// handle empty key as default value placeholder
 	if param.Tag.Key == "" {
 		if param.Tag.HasDef {
+			v.Set(ret)
 			return nil
 		}
 	}
@@ -392,6 +392,7 @@ func bindMap(p flatten.Storage, v reflect.Value, t reflect.Type, param BindParam
 	p.MapKeys(param.Key, keySet)
 	if len(keySet) == 0 {
 		if param.Tag.HasDef {
+			v.Set(ret)
 			return nil
 		}
 		return errutil.Explain(ErrNotExist, "map property %q", param.Key)
@@ -412,6 +413,7 @@ func bindMap(p flatten.Storage, v reflect.Value, t reflect.Type, param BindParam
 		}
 		ret.SetMapIndex(reflect.ValueOf(key), subValue)
 	}
+	v.Set(ret)
 	return nil
 }
 

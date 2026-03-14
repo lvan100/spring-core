@@ -152,6 +152,9 @@ func (s *AppStarter) RunTest(t *testing.T, f any) {
 	// Register the root bean
 	s.app.Root(s.app.Provide(obj.Interface()))
 
+	// Force autowire to be nullable
+	s.app.Property("spring.force-autowire-is-nullable", "true")
+
 	stop, err := s.RunAsync()
 	if err != nil {
 		t.Fatal(err)
