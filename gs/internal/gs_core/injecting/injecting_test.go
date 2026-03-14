@@ -478,7 +478,7 @@ func TestInjecting(t *testing.T) {
 			provideBean(NewZeroLogger),
 		}
 		err := r.Refresh(extractBeans(beans))
-		assert.Error(t, err).Matches("property \"\": not exist")
+		assert.Error(t, err).Matches("parse tag '' error: invalid syntax")
 	})
 
 	t.Run("wire error - missing required dependencies", func(t *testing.T) {

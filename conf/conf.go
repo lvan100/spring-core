@@ -90,7 +90,7 @@ func Bind(p flatten.Storage, i any, tag ...string) error {
 	}
 
 	s := "${ROOT}"
-	if len(tag) > 0 && tag[0] != "" {
+	if len(tag) > 0 {
 		s = tag[0]
 	}
 

@@ -387,7 +387,8 @@ func bindMap(p flatten.Storage, v reflect.Value, t reflect.Type, param BindParam
 		}
 	}
 
-	// ensure property exists
+	// Allow `param.Key` to be an empty string,
+	// to retrieve all configuration items.
 	keySet := make(map[string]struct{})
 	p.MapKeys(param.Key, keySet)
 	if len(keySet) == 0 {
@@ -502,9 +503,9 @@ func resolve(p flatten.Storage, param BindParam) (string, error) {
 	if val, ok := p.Value(param.Key); ok {
 		return Resolve(p, val)
 	}
-	//if p.Exists(param.Key) {
-	//	return "", errutil.Explain(nil, "property %q isn't simple value", param.Key)
-	//}
+	if p.Exists(param.Key) {
+		return "", errutil.Explain(nil, "property %q isn't simple value", param.Key)
+	}
 	if param.Tag.HasDef {
 		return Resolve(p, param.Tag.Def)
 	}

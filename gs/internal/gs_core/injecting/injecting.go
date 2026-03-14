@@ -65,7 +65,15 @@ func New(p flatten.Storage) *Injecting {
 	}
 }
 
-// RefreshProperties updates the dynamic property source for the container.
+// DynamicObjectsCount returns the number of objects that can be dynamically refreshed.
+func (c *Injecting) DynamicObjectsCount() int {
+	if c.p == nil {
+		return 0
+	}
+	return c.p.ObjectsCount()
+}
+
+// RefreshProperties updates the dynamic properties in the container.
 func (c *Injecting) RefreshProperties(p flatten.Storage) error {
 	return c.p.Refresh(p)
 }
@@ -905,15 +913,8 @@ func (a *ArgContext) Has(key string) bool {
 }
 
 // Prop retrieves a property value, with optional default.
-func (a *ArgContext) Prop(key string, def ...string) string {
-	str, ok := a.c.p.Data().Value(key)
-	if ok {
-		return str
-	}
-	if len(def) > 0 {
-		return def[0]
-	}
-	return ""
+func (a *ArgContext) Prop(key string) (string, bool) {
+	return a.c.p.Data().Value(key)
 }
 
 // Find retrieves beans matching the given selector.

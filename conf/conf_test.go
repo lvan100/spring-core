@@ -42,7 +42,7 @@ func TestProperties_Load(t *testing.T) {
 	})
 
 	t.Run("file not exist", func(t *testing.T) {
-		_, err := conf.Load("./testdata/config/app.tcl")
+		_, err := conf.Load("./testdata/config/xxx.yml")
 		assert.Error(t, err).Matches("no such file or directory")
 	})
 

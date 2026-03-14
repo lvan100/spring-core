@@ -60,7 +60,7 @@ func TestContainer(t *testing.T) {
 			c.Provide(func(addr string) *http.Server { return nil }),
 		}
 		err := c.Refresh(flatten.NewPropertiesStorage(flatten.NewProperties(nil)), roots)
-		assert.Error(t, err).Matches("property \"\": not exist")
+		assert.Error(t, err).Matches("parse tag '' error: invalid syntax")
 	})
 
 	t.Run("duplicate object registration", func(t *testing.T) {

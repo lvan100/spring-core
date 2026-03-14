@@ -49,14 +49,14 @@ func Register(r Reader, ext ...string) {
 // ReadFile reads a file and parses its content into a map[string]any.
 // Returns an error if the file cannot be read or the file type is unsupported.
 func ReadFile(file string) (map[string]any, error) {
-	b, err := os.ReadFile(file)
-	if err != nil {
-		return nil, errutil.Explain(err, "read file %s error", file)
-	}
 	ext := filepath.Ext(file)
 	r, ok := readers[ext]
 	if !ok {
-		err = errutil.Explain(nil, "unsupported file type %s", ext)
+		err := errutil.Explain(nil, "unsupported file type %s", ext)
+		return nil, errutil.Explain(err, "read file %s error", file)
+	}
+	b, err := os.ReadFile(file)
+	if err != nil {
 		return nil, errutil.Explain(err, "read file %s error", file)
 	}
 	m, err := r(b)
